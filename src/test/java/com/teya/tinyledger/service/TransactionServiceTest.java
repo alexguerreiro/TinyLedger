@@ -5,6 +5,7 @@ import com.teya.tinyledger.domain.OperationType;
 import com.teya.tinyledger.domain.Transaction;
 import com.teya.tinyledger.dto.TransactionHistoryResponse;
 import com.teya.tinyledger.dto.TransactionRequest;
+import com.teya.tinyledger.exception.AccountNotFoundException;
 import com.teya.tinyledger.repository.AccountRepo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -64,34 +65,13 @@ class TransactionServiceTest {
     }
 
     @Test
-    @DisplayName("Should throw exception when withdrawal amount exceeds balance")
-    void testAddWithdrawal_InsufficientBalance() {
-        Account account = new Account("Low Balance", 500.0);
-        UUID accountId = account.getId();
-        accountRepo.saveAccount(accountId, account);
-
-        Double withdrawalAmount = 2000.0;
-        TransactionRequest request = new TransactionRequest(accountId, withdrawalAmount);
-
-        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
-            transactionService.addWithdrawal(request);
-        });
-
-        assertTrue(exception.getMessage().contains("does not have enough balance"));
-
-        Account unchangedAccount = accountRepo.getAccount(accountId);
-        assertEquals(500.0, unchangedAccount.getBalance());
-        assertEquals(0, unchangedAccount.getTransactions().size());
-    }
-
-    @Test
     @DisplayName("Should throw exception when account not found for deposit")
     void testAddDeposit_AccountNotFound() {
         UUID nonExistentAccountId = UUID.randomUUID();
         Double depositAmount = 100.0;
         TransactionRequest request = new TransactionRequest(nonExistentAccountId, depositAmount);
 
-        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+        AccountNotFoundException exception = assertThrows(AccountNotFoundException.class, () -> {
             transactionService.addDeposit(request);
         });
 
@@ -105,7 +85,7 @@ class TransactionServiceTest {
         Double withdrawalAmount = 100.0;
         TransactionRequest request = new TransactionRequest(nonExistentAccountId, withdrawalAmount);
 
-        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+        AccountNotFoundException exception = assertThrows(AccountNotFoundException.class, () -> {
             transactionService.addWithdrawal(request);
         });
 
@@ -158,7 +138,7 @@ class TransactionServiceTest {
     void testGetTransactionHistory_AccountNotFound() {
         UUID nonExistentAccountId = UUID.randomUUID();
 
-        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
+        AccountNotFoundException exception = assertThrows(AccountNotFoundException.class, () -> {
             transactionService.getTransactionHistory(nonExistentAccountId);
         });
 

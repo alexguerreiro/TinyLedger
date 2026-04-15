@@ -12,11 +12,14 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+
+import static org.springframework.http.HttpStatus.CREATED;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -24,6 +27,7 @@ import java.util.UUID;
 public class TransactionController {
 
     private final TransactionService transactionService;
+    private static final Logger logger = LoggerFactory.getLogger(TransactionController.class);
 
     public TransactionController(TransactionService transactionService) {
         this.transactionService = transactionService;
@@ -56,12 +60,8 @@ public class TransactionController {
     })
     public ResponseEntity<TransactionResponse> deposit(@Valid @RequestBody TransactionRequest transactionRequest) {
         transactionService.addDeposit(transactionRequest);
-        TransactionResponse response = new TransactionResponse(
-                "Deposit processed successfully",
-                HttpStatus.CREATED.value(),
-                null
-        );
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        TransactionResponse response = new TransactionResponse("Deposit processed successfully", CREATED.value());
+        return ResponseEntity.status(CREATED).body(response);
     }
 
     @PostMapping("/accounts/transactions/withdrawal")
@@ -91,12 +91,8 @@ public class TransactionController {
     })
     public ResponseEntity<TransactionResponse> withdrawal(@Valid @RequestBody TransactionRequest transactionRequest) {
         transactionService.addWithdrawal(transactionRequest);
-        TransactionResponse response = new TransactionResponse(
-                "Withdrawal processed successfully",
-                HttpStatus.CREATED.value(),
-                null
-        );
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        TransactionResponse response = new TransactionResponse("Withdrawal processed successfully", CREATED.value());
+        return ResponseEntity.status(CREATED).body(response);
     }
 
     @GetMapping("/accounts/{accountId}/transactions")
@@ -123,12 +119,8 @@ public class TransactionController {
     public ResponseEntity<TransactionHistoryResponse> getTransactionHistory(
             @Parameter(description = "The unique identifier (UUID) of the account", required = true)
             @PathVariable UUID accountId) {
-        try {
-            TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId);
-            return ResponseEntity.ok(history);
-        } catch (IllegalStateException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
+        TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId);
+        return ResponseEntity.ok(history);
     }
 }
 

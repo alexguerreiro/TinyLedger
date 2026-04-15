@@ -1,5 +1,7 @@
 package com.teya.tinyledger.exception;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -12,6 +14,7 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /**
      * Handle validation errors from @Valid annotation
@@ -25,6 +28,8 @@ public class GlobalExceptionHandler {
             errors.put(fieldName, errorMessage);
         });
 
+        logger.error("Validation failed: {}", errors);
+
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Validation failed");
         response.put("statusCode", HttpStatus.BAD_REQUEST.value());
@@ -34,10 +39,26 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handle AccountNotFoundException
+     */
+    @ExceptionHandler(AccountNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleAccountNotFoundException(AccountNotFoundException ex) {
+        logger.error("AccountNotFoundException occurred: {}", ex.getMessage(), ex);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", ex.getMessage());
+        response.put("statusCode", HttpStatus.NOT_FOUND.value());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    /**
      * Handle IllegalArgumentException
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
+        logger.error("IllegalArgumentException occurred: {}", ex.getMessage(), ex);
+
         Map<String, Object> response = new HashMap<>();
         response.put("message", ex.getMessage());
         response.put("statusCode", HttpStatus.BAD_REQUEST.value());
@@ -50,6 +71,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalStateException(IllegalStateException ex) {
+        logger.error("IllegalStateException occurred: {}", ex.getMessage(), ex);
+
         Map<String, Object> response = new HashMap<>();
         response.put("message", ex.getMessage());
         response.put("statusCode", HttpStatus.BAD_REQUEST.value());
@@ -62,6 +85,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleException(Exception ex) {
+        logger.error("Unexpected error occurred: {}", ex.getMessage(), ex);
+
         Map<String, Object> response = new HashMap<>();
         response.put("message", "An unexpected error occurred: " + ex.getMessage());
         response.put("statusCode", HttpStatus.INTERNAL_SERVER_ERROR.value());

@@ -4,6 +4,7 @@ import com.teya.tinyledger.domain.Account;
 import com.teya.tinyledger.dto.AccountRequest;
 import com.teya.tinyledger.dto.AccountResponse;
 import com.teya.tinyledger.dto.BalanceResponse;
+import com.teya.tinyledger.exception.AccountNotFoundException;
 import com.teya.tinyledger.service.AccountService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,6 +14,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +28,7 @@ import java.util.UUID;
 public class AccountController {
 
     private final AccountService accountService;
+    private static final Logger logger = LoggerFactory.getLogger(AccountController.class);
 
     public AccountController(AccountService accountService) {
         this.accountService = accountService;
@@ -90,7 +94,8 @@ public class AccountController {
         try {
             BalanceResponse balance = accountService.getAccountBalance(accountId);
             return ResponseEntity.ok(balance);
-        } catch (IllegalStateException e) {
+        } catch (AccountNotFoundException e) {
+            logger.error("Error retrieving account balance for account id: {}", accountId, e);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }

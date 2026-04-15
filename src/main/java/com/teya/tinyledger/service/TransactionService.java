@@ -5,7 +5,10 @@ import com.teya.tinyledger.domain.OperationType;
 import com.teya.tinyledger.domain.Transaction;
 import com.teya.tinyledger.dto.TransactionRequest;
 import com.teya.tinyledger.dto.TransactionHistoryResponse;
+import com.teya.tinyledger.exception.AccountNotFoundException;
 import com.teya.tinyledger.repository.AccountRepo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -18,6 +21,7 @@ import static com.teya.tinyledger.domain.OperationType.*;
 @Service
 public class TransactionService {
     private final AccountRepo accountRepo;
+    private static final Logger logger = LoggerFactory.getLogger(TransactionService.class);
 
     public TransactionService(AccountRepo accountRepo) {
         this.accountRepo = accountRepo;
@@ -36,7 +40,8 @@ public class TransactionService {
     public TransactionHistoryResponse getTransactionHistory(UUID accountId) {
         Account account = accountRepo.getAccount(accountId);
         if(account == null) {
-            throw new IllegalStateException("Account not found for id: " + accountId);
+            logger.error("Account not found for id: {}", accountId);
+            throw new AccountNotFoundException("Account not found for id: " + accountId);
         }
 
         // Sort transactions by created at in descending order (most recent first)
@@ -54,36 +59,27 @@ public class TransactionService {
 
     private void deposit(Transaction transaction, UUID accountId) {
         Account updatedAccount = accountRepo.updateAccountAtomically(accountId, account -> {
-            if (account == null) {
-                throw new IllegalStateException("Account not found for id: " + accountId);
-            }
             account.addTransaction(transaction);
             account.setBalance(account.getBalance() + transaction.amount());
             return account;
         });
 
         if (updatedAccount == null) {
-            throw new IllegalStateException("Account not found for id: " + accountId);
+            logger.error("Account not found for id: {}", accountId);
+            throw new AccountNotFoundException("Account not found for id: " + accountId);
         }
     }
 
     private void withdrawal(Transaction transaction, UUID userId) {
         Account updatedAccount = accountRepo.updateAccountAtomically(userId, account -> {
-            if (account == null) {
-                throw new IllegalStateException("Account not found for user id: " + userId);
-            }
-
-            if (account.getBalance() - transaction.amount() < 0) {
-                throw new IllegalStateException("Account does not have enough balance");
-            }
-
             account.addTransaction(transaction);
             account.setBalance(account.getBalance() - transaction.amount());
             return account;
         });
 
         if (updatedAccount == null) {
-            throw new IllegalStateException("Account not found for user id: " + userId);
+            logger.error("Account not found for user id: {}", userId);
+            throw new AccountNotFoundException("Account not found for user id: " + userId);
         }
     }
 
