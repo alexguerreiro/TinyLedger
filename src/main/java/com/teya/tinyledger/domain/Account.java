@@ -3,30 +3,28 @@ package com.teya.tinyledger.domain;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.math.BigDecimal;
+import java.util.*;
 
 public class Account {
-    private UUID id;
+    private String id;
     private String name;
-    private double balance;
+    private BigDecimal balance;
     private Set<Transaction> transactions;
     private static final Logger logger = LoggerFactory.getLogger(Account.class);
 
-    public Account(String name, Double balance) {
-        if (balance < 0) {
+    public Account(String name, BigDecimal balance) {
+        if (balance.compareTo(BigDecimal.ZERO) < 0) {
             logger.error("Account balance cannot be negative: {}", balance);
             throw new IllegalArgumentException("Account balance cannot be negative");
         }
-        this.id = UUID.randomUUID();
+        this.id = UUID.randomUUID().toString();
         this.name = name;
         this.balance = balance;
         this.transactions = new HashSet<>();
     }
 
-    public UUID getId() {
+    public String getId() {
         return id;
     }
 
@@ -34,16 +32,16 @@ public class Account {
         return name;
     }
 
-    public Double getBalance() {
+    public BigDecimal getBalance() {
         return balance;
     }
 
-    public void setBalance(double balance) {
+    public void setBalance(BigDecimal balance) {
         this.balance = balance;
     }
 
     public Set<Transaction> getTransactions() {
-        return transactions;
+        return Collections.unmodifiableSet(transactions);
     }
 
     public void addTransaction(Transaction transaction) {

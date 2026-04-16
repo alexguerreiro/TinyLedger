@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.UnaryOperator;
@@ -17,12 +16,12 @@ public class AccountRepo {
     private static final Logger logger = LoggerFactory.getLogger(AccountRepo.class);
 
     // simulates an account database
-    private final Map<UUID, Account> accountsDB = new ConcurrentHashMap<>();
+    private final Map<String, Account> accountsDB = new ConcurrentHashMap<>();
 
     // Per-account locks for fine-grained concurrency control
-    private final Map<UUID, ReentrantReadWriteLock> accountLocks = new ConcurrentHashMap<>();
+    private final Map<String, ReentrantReadWriteLock> accountLocks = new ConcurrentHashMap<>();
 
-    public Account getAccount(UUID accountId) {
+    public Account getAccount(String accountId) {
         ReentrantReadWriteLock lock = accountLocks.computeIfAbsent(accountId, id -> new ReentrantReadWriteLock());
         lock.readLock().lock();
         try {
@@ -32,7 +31,7 @@ public class AccountRepo {
         }
     }
 
-    public void saveAccount(UUID accountId, Account account) {
+    public void saveAccount(String accountId, Account account) {
         ReentrantReadWriteLock lock = accountLocks.computeIfAbsent(accountId, id -> new ReentrantReadWriteLock());
         lock.writeLock().lock();
         try {
@@ -51,7 +50,7 @@ public class AccountRepo {
      * @param updateFunction function to apply to the account
      * @return the updated account, or null if account doesn't exist
      */
-    public Account updateAccountAtomically(UUID accountId, UnaryOperator<Account> updateFunction) {
+    public Account updateAccountAtomically(String accountId, UnaryOperator<Account> updateFunction) {
         ReentrantReadWriteLock lock = accountLocks.computeIfAbsent(accountId, id -> new ReentrantReadWriteLock());
         lock.writeLock().lock();
         try {

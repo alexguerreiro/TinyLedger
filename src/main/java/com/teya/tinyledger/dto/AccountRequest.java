@@ -1,7 +1,11 @@
 package com.teya.tinyledger.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+import java.math.BigDecimal;
 
 @Schema(
         description = "Request object for creating a new account",
@@ -23,9 +27,11 @@ public class AccountRequest {
             requiredMode = Schema.RequiredMode.REQUIRED,
             minimum = "0.0"
     )
-    private double initialBalance;
+    @NotNull(message = "Initial balance is mandatory and cannot be null")
+    @DecimalMin(value = "0.0", inclusive = true, message = "Initial balance cannot be negative")
+    private BigDecimal initialBalance;
 
-    public AccountRequest(String accountName, double initialBalance) {
+    public AccountRequest(String accountName, BigDecimal initialBalance) {
         this.accountName = accountName;
         this.initialBalance = initialBalance;
     }
@@ -34,10 +40,12 @@ public class AccountRequest {
         return accountName;
     }
 
-    public Double getInitialBalance() {
+    public BigDecimal getInitialBalance() {
         return initialBalance;
     }
 }
+
+
 
 
 

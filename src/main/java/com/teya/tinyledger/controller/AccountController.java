@@ -20,8 +20,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.UUID;
-
 @RestController
 @RequestMapping("/api/v1")
 @Tag(name = "Accounts", description = "APIs for managing ledger accounts")
@@ -89,8 +87,8 @@ public class AccountController {
             )
     })
     public ResponseEntity<BalanceResponse> getAccountBalance(
-            @Parameter(description = "The unique identifier (UUID) of the account", required = true)
-            @PathVariable UUID accountId) {
+            @Parameter(description = "The unique identifier of the account", required = true)
+            @PathVariable String accountId) {
         try {
             BalanceResponse balance = accountService.getAccountBalance(accountId);
             return ResponseEntity.ok(balance);

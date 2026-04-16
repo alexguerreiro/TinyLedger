@@ -1,7 +1,7 @@
 package com.teya.tinyledger.service;
 
 import com.teya.tinyledger.domain.Account;
-import com.teya.tinyledger.domain.OperationType;
+import com.teya.tinyledger.domain.TransactionType;
 import com.teya.tinyledger.domain.Transaction;
 import com.teya.tinyledger.dto.TransactionRequest;
 import com.teya.tinyledger.dto.TransactionHistoryResponse;
@@ -11,12 +11,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 
-import static com.teya.tinyledger.domain.OperationType.*;
+import static com.teya.tinyledger.domain.TransactionType.*;
 
 @Service
 public class TransactionService {
@@ -27,17 +28,27 @@ public class TransactionService {
         this.accountRepo = accountRepo;
     }
 
-    public void addDeposit(TransactionRequest transactionRequest) {
-        Transaction transaction = buildTransaction(transactionRequest.getAmount(), DEPOSIT);
-        deposit(transaction, transactionRequest.getAccountId());
+    public void createTransaction(TransactionRequest transactionRequest) {
+        Transaction transaction = buildTransaction(transactionRequest.getAmount(), transactionRequest.getTransactionType());
+
+        Account updatedAccount = accountRepo.updateAccountAtomically(transactionRequest.getAccountId(), account -> {
+            account.addTransaction(transaction);
+
+            if(transactionRequest.getTransactionType() == DEPOSIT) {
+                account.setBalance(account.getBalance().add(transaction.amount()));
+            } else {
+                account.setBalance(account.getBalance().subtract(transaction.amount()));
+            }
+            return account;
+        });
+
+        if (updatedAccount == null) {
+            logger.error("Account not found for id: {}", transactionRequest.getAccountId());
+            throw new AccountNotFoundException("Account not found for id: " + transactionRequest.getAccountId());
+        }
     }
 
-    public void addWithdrawal(TransactionRequest transactionRequest) {
-        Transaction transaction = buildTransaction(transactionRequest.getAmount(), WITHDRAWAL);
-        withdrawal(transaction, transactionRequest.getAccountId());
-    }
-
-    public TransactionHistoryResponse getTransactionHistory(UUID accountId) {
+    public TransactionHistoryResponse getTransactionHistory(String accountId) {
         Account account = accountRepo.getAccount(accountId);
         if(account == null) {
             logger.error("Account not found for id: {}", accountId);
@@ -57,33 +68,7 @@ public class TransactionService {
         );
     }
 
-    private void deposit(Transaction transaction, UUID accountId) {
-        Account updatedAccount = accountRepo.updateAccountAtomically(accountId, account -> {
-            account.addTransaction(transaction);
-            account.setBalance(account.getBalance() + transaction.amount());
-            return account;
-        });
-
-        if (updatedAccount == null) {
-            logger.error("Account not found for id: {}", accountId);
-            throw new AccountNotFoundException("Account not found for id: " + accountId);
-        }
-    }
-
-    private void withdrawal(Transaction transaction, UUID userId) {
-        Account updatedAccount = accountRepo.updateAccountAtomically(userId, account -> {
-            account.addTransaction(transaction);
-            account.setBalance(account.getBalance() - transaction.amount());
-            return account;
-        });
-
-        if (updatedAccount == null) {
-            logger.error("Account not found for user id: {}", userId);
-            throw new AccountNotFoundException("Account not found for user id: " + userId);
-        }
-    }
-
-    private Transaction buildTransaction(double amount, OperationType operationType) {
-        return new Transaction(UUID.randomUUID(), LocalDateTime.now(), amount, operationType);
+    private Transaction buildTransaction(BigDecimal amount, TransactionType transactionType) {
+        return new Transaction(UUID.randomUUID().toString(), LocalDateTime.now(), amount, transactionType);
     }
 }

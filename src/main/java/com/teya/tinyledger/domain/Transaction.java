@@ -1,12 +1,12 @@
 package com.teya.tinyledger.domain;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 public record Transaction(
-        UUID id,
+        String id,
         LocalDateTime createdAt,
-        Double amount,
-        OperationType operationType
+        BigDecimal amount,
+        TransactionType transactionType
 ) {}
 

@@ -12,12 +12,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.UUID;
 
 import static org.springframework.http.HttpStatus.CREATED;
 
@@ -27,13 +23,12 @@ import static org.springframework.http.HttpStatus.CREATED;
 public class TransactionController {
 
     private final TransactionService transactionService;
-    private static final Logger logger = LoggerFactory.getLogger(TransactionController.class);
 
     public TransactionController(TransactionService transactionService) {
         this.transactionService = transactionService;
     }
 
-    @PostMapping("/accounts/transactions/deposit")
+    @PostMapping("/accounts/transactions")
     @Operation(
             summary = "Deposit money to an account",
             description = "Adds funds to the specified account. The amount must be greater than zero.",
@@ -58,40 +53,9 @@ public class TransactionController {
                     description = "Internal server error"
             )
     })
-    public ResponseEntity<TransactionResponse> deposit(@Valid @RequestBody TransactionRequest transactionRequest) {
-        transactionService.addDeposit(transactionRequest);
+    public ResponseEntity<TransactionResponse> create(@Valid @RequestBody TransactionRequest transactionRequest) {
+        transactionService.createTransaction(transactionRequest);
         TransactionResponse response = new TransactionResponse("Deposit processed successfully", CREATED.value());
-        return ResponseEntity.status(CREATED).body(response);
-    }
-
-    @PostMapping("/accounts/transactions/withdrawal")
-    @Operation(
-            summary = "Withdraw money from an account",
-            description = "Removes funds from the specified account. Withdrawal fails if insufficient balance exists.",
-            tags = {"Transactions"}
-    )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "201",
-                    description = "Withdrawal processed successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = TransactionResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "Invalid request - amount must be positive, insufficient balance, or account not found"
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "Account not found"
-            ),
-            @ApiResponse(
-                    responseCode = "500",
-                    description = "Internal server error"
-            )
-    })
-    public ResponseEntity<TransactionResponse> withdrawal(@Valid @RequestBody TransactionRequest transactionRequest) {
-        transactionService.addWithdrawal(transactionRequest);
-        TransactionResponse response = new TransactionResponse("Withdrawal processed successfully", CREATED.value());
         return ResponseEntity.status(CREATED).body(response);
     }
 
@@ -117,8 +81,8 @@ public class TransactionController {
             )
     })
     public ResponseEntity<TransactionHistoryResponse> getTransactionHistory(
-            @Parameter(description = "The unique identifier (UUID) of the account", required = true)
-            @PathVariable UUID accountId) {
+            @Parameter(description = "The unique identifier of the account", required = true)
+            @PathVariable String accountId) {
         TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId);
         return ResponseEntity.ok(history);
     }
