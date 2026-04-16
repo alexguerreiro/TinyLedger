@@ -4,7 +4,6 @@ import com.teya.tinyledger.domain.Account;
 import com.teya.tinyledger.dto.AccountRequest;
 import com.teya.tinyledger.dto.AccountResponse;
 import com.teya.tinyledger.dto.BalanceResponse;
-import com.teya.tinyledger.exception.AccountNotFoundException;
 import com.teya.tinyledger.service.AccountService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -89,13 +88,8 @@ public class AccountController {
     public ResponseEntity<BalanceResponse> getAccountBalance(
             @Parameter(description = "The unique identifier of the account", required = true)
             @PathVariable String accountId) {
-        try {
-            BalanceResponse balance = accountService.getAccountBalance(accountId);
-            return ResponseEntity.ok(balance);
-        } catch (AccountNotFoundException e) {
-            logger.error("Error retrieving account balance for account id: {}", accountId, e);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
+        BalanceResponse balance = accountService.getAccountBalance(accountId);
+        return ResponseEntity.ok(balance);
     }
 }
 

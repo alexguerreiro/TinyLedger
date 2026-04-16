@@ -31,17 +31,18 @@ public class TransactionService {
     public void createTransaction(TransactionRequest transactionRequest) {
         Transaction transaction = buildTransaction(transactionRequest.getAmount(), transactionRequest.getTransactionType());
 
-        Account updatedAccount = accountRepo.updateAccountAtomically(transactionRequest.getAccountId(), account -> {
-            Account withTransaction = account.withTransaction(transaction);
+        Account updatedAccount = accountRepo.updateAccountAtomically(transactionRequest.getAccountId(),
+                account -> {
+                    Account withTransaction = account.withTransaction(transaction);
 
-            // Calculate new balance
-            BigDecimal newBalance = transactionRequest.getTransactionType() == DEPOSIT
-                    ? withTransaction.getBalance().add(transaction.amount())
-                    : withTransaction.getBalance().subtract(transaction.amount());
+                    // Calculate new balance
+                    BigDecimal newBalance = transactionRequest.getTransactionType() == DEPOSIT
+                            ? withTransaction.getBalance().add(transaction.amount())
+                            : withTransaction.getBalance().subtract(transaction.amount());
 
-            // Return account with updated balance
-            return withTransaction.withBalance(newBalance);
-        });
+                    // Return account with updated balance
+                    return withTransaction.withBalance(newBalance);
+                });
 
         if (updatedAccount == null) {
             logger.error("Account not found for id: {}", transactionRequest.getAccountId());

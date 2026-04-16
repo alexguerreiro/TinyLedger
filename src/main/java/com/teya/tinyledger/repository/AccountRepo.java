@@ -21,6 +21,16 @@ public class AccountRepo {
     // Per-account locks for fine-grained concurrency control
     private final Map<String, ReentrantReadWriteLock> accountLocks = new ConcurrentHashMap<>();
 
+    public void createAccount(String accountId, Account account) {
+        Account existentAccount = getAccount(accountId);
+
+        if(existentAccount != null) {
+            throw new IllegalArgumentException("Account with id " + accountId + " already exists");
+        }
+
+        accountsDB.put(accountId, account);
+    }
+
     public Account getAccount(String accountId) {
         ReentrantReadWriteLock lock = accountLocks.computeIfAbsent(accountId, id -> new ReentrantReadWriteLock());
         lock.readLock().lock();
@@ -30,17 +40,6 @@ public class AccountRepo {
             lock.readLock().unlock();
         }
     }
-
-    public void saveAccount(String accountId, Account account) {
-        ReentrantReadWriteLock lock = accountLocks.computeIfAbsent(accountId, id -> new ReentrantReadWriteLock());
-        lock.writeLock().lock();
-        try {
-            accountsDB.put(accountId, account);
-        } finally {
-            lock.writeLock().unlock();
-        }
-    }
-
 
     /**
      * Atomically updates an account using per-account write locks.
@@ -62,8 +61,6 @@ public class AccountRepo {
 
             // Apply the update function to create a new state
             Account updatedAccount = updateFunction.apply(currentAccount);
-
-            // Update the account in the database
             accountsDB.put(accountId, updatedAccount);
 
             return updatedAccount;

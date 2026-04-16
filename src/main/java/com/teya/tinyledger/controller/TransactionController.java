@@ -30,14 +30,14 @@ public class TransactionController {
 
     @PostMapping("/accounts/transactions")
     @Operation(
-            summary = "Deposit money to an account",
-            description = "Adds funds to the specified account. The amount must be greater than zero.",
+            summary = "Transaction operations (deposit or withdrawal)",
+            description = "Register a deposit or withdrawal transaction. The amount must be greater than zero.",
             tags = {"Transactions"}
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "201",
-                    description = "Deposit processed successfully",
+                    description = "Transaction processed successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = TransactionResponse.class))
             ),
             @ApiResponse(
@@ -55,7 +55,7 @@ public class TransactionController {
     })
     public ResponseEntity<TransactionResponse> create(@Valid @RequestBody TransactionRequest transactionRequest) {
         transactionService.createTransaction(transactionRequest);
-        TransactionResponse response = new TransactionResponse("Deposit processed successfully", CREATED.value());
+        TransactionResponse response = new TransactionResponse("Transaction processed successfully", CREATED.value());
         return ResponseEntity.status(CREATED).body(response);
     }
 

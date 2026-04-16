@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 
 @Schema(
         description = "Request object for transaction operations (deposit or withdrawal)",
-        example = "{\"accountId\": \"550e8400-e29b-41d4-a716-446655440000\", \"amount\": 500.0}"
+        example = "{\"accountId\": \"550e8400-e29b-41d4-a716-446655440000\", \"amount\": 500.0, \"transactionType\": \"DEPOSIT\"}"
 )
 public class TransactionRequest {
 
