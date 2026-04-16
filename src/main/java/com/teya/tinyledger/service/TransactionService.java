@@ -32,14 +32,15 @@ public class TransactionService {
         Transaction transaction = buildTransaction(transactionRequest.getAmount(), transactionRequest.getTransactionType());
 
         Account updatedAccount = accountRepo.updateAccountAtomically(transactionRequest.getAccountId(), account -> {
-            account.addTransaction(transaction);
+            Account withTransaction = account.withTransaction(transaction);
 
-            if(transactionRequest.getTransactionType() == DEPOSIT) {
-                account.setBalance(account.getBalance().add(transaction.amount()));
-            } else {
-                account.setBalance(account.getBalance().subtract(transaction.amount()));
-            }
-            return account;
+            // Calculate new balance
+            BigDecimal newBalance = transactionRequest.getTransactionType() == DEPOSIT
+                    ? withTransaction.getBalance().add(transaction.amount())
+                    : withTransaction.getBalance().subtract(transaction.amount());
+
+            // Return account with updated balance
+            return withTransaction.withBalance(newBalance);
         });
 
         if (updatedAccount == null) {
@@ -50,7 +51,7 @@ public class TransactionService {
 
     public TransactionHistoryResponse getTransactionHistory(String accountId) {
         Account account = accountRepo.getAccount(accountId);
-        if(account == null) {
+        if (account == null) {
             logger.error("Account not found for id: {}", accountId);
             throw new AccountNotFoundException("Account not found for id: " + accountId);
         }

@@ -20,7 +20,7 @@ public class AccountService {
 
     public Account createAccount(AccountRequest accountRequest) {
         Account account = new Account(accountRequest.getAccountName(), accountRequest.getInitialBalance());
-        accountRepo.saveAccount(account.getId(), account);
+        accountRepo.createAccount(account.getId(), account);
         return account;
     }
 

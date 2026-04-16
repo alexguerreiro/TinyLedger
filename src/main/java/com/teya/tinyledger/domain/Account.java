@@ -6,11 +6,11 @@ import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
 import java.util.*;
 
-public class Account {
-    private String id;
-    private String name;
-    private BigDecimal balance;
-    private Set<Transaction> transactions;
+public final class Account {
+    private final String id;
+    private final String name;
+    private final BigDecimal balance;
+    private final Set<Transaction> transactions;
     private static final Logger logger = LoggerFactory.getLogger(Account.class);
 
     public Account(String name, BigDecimal balance) {
@@ -22,6 +22,14 @@ public class Account {
         this.name = name;
         this.balance = balance;
         this.transactions = new HashSet<>();
+    }
+
+    // Private constructor for creating updated copies
+    private Account(String id, String name, BigDecimal balance, Set<Transaction> transactions) {
+        this.id = id;
+        this.name = name;
+        this.balance = balance;
+        this.transactions = transactions;
     }
 
     public String getId() {
@@ -36,16 +44,31 @@ public class Account {
         return balance;
     }
 
-    public void setBalance(BigDecimal balance) {
-        this.balance = balance;
-    }
-
     public Set<Transaction> getTransactions() {
         return Collections.unmodifiableSet(transactions);
     }
 
-    public void addTransaction(Transaction transaction) {
-        this.transactions.add(transaction);
+    /**
+     * Creates a new Account with updated balance (immutable pattern).
+     *
+     * @param newBalance the new balance
+     * @return a new Account instance with the updated balance
+     */
+    public Account withBalance(BigDecimal newBalance) {
+        Set<Transaction> transactionsCopy = new HashSet<>(this.transactions);
+        return new Account(this.id, this.name, newBalance, transactionsCopy);
+    }
+
+    /**
+     * Creates a new Account with an additional transaction (immutable pattern).
+     *
+     * @param transaction the transaction to add
+     * @return a new Account instance with the additional transaction
+     */
+    public Account withTransaction(Transaction transaction) {
+        Set<Transaction> transactionsCopy = new HashSet<>(this.transactions);
+        transactionsCopy.add(transaction);
+        return new Account(this.id, this.name, this.balance, transactionsCopy);
     }
 
     @Override

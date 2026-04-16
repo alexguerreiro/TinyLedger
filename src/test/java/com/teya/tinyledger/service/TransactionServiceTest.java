@@ -34,7 +34,7 @@ class TransactionServiceTest {
     void testAddDeposit_Success() {
         Account account = new Account("Test", new BigDecimal("1000.0"));
         String accountId = account.getId();
-        accountRepo.saveAccount(accountId, account);
+        accountRepo.createAccount(accountId, account);
 
         BigDecimal depositAmount = new BigDecimal("500.0");
         TransactionRequest request = new TransactionRequest(accountId, depositAmount, TransactionType.DEPOSIT);
@@ -52,7 +52,7 @@ class TransactionServiceTest {
     void testAddWithdrawal_Success() {
         Account account = new Account("Test", new BigDecimal("1000.0"));
         String accountId = account.getId();
-        accountRepo.saveAccount(accountId, account);
+        accountRepo.createAccount(accountId, account);
 
         BigDecimal withdrawalAmount = new BigDecimal("300.0");
         TransactionRequest request = new TransactionRequest(accountId, withdrawalAmount, TransactionType.WITHDRAWAL);
@@ -119,10 +119,11 @@ class TransactionServiceTest {
                 TransactionType.DEPOSIT
         );
 
-        account.addTransaction(t1);
-        account.addTransaction(t2);
-        account.addTransaction(t3);
-        accountRepo.saveAccount(accountId, account);
+        // Use immutable factory methods to add transactions
+        Account accountWithT1 = account.withTransaction(t1);
+        Account accountWithT2 = accountWithT1.withTransaction(t2);
+        Account accountWithT3 = accountWithT2.withTransaction(t3);
+        accountRepo.createAccount(accountId, accountWithT3);
 
         TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId);
 
@@ -151,7 +152,7 @@ class TransactionServiceTest {
     void testGetTransactionHistory_EmptyTransactions() {
         Account account = new Account("No Transactions", new BigDecimal("1000.0"));
         String accountId = account.getId();
-        accountRepo.saveAccount(accountId, account);
+        accountRepo.createAccount(accountId, account);
 
         TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId);
 
@@ -167,7 +168,7 @@ class TransactionServiceTest {
     void testMixedOperations() {
         Account account = new Account("Mixed Operations", new BigDecimal("1000.0"));
         String accountId = account.getId();
-        accountRepo.saveAccount(accountId, account);
+        accountRepo.createAccount(accountId, account);
 
         TransactionRequest depositRequest1 = new TransactionRequest(accountId, new BigDecimal("500.0"), TransactionType.DEPOSIT);
         TransactionRequest withdrawalRequest1 = new TransactionRequest(accountId, new BigDecimal("200.0"), TransactionType.WITHDRAWAL);
@@ -190,7 +191,7 @@ class TransactionServiceTest {
     void testDeposit_BalanceIncrement() {
         Account account = new Account("Balance Test", new BigDecimal("500.0"));
         String accountId = account.getId();
-        accountRepo.saveAccount(accountId, account);
+        accountRepo.createAccount(accountId, account);
 
         TransactionRequest request = new TransactionRequest(accountId, new BigDecimal("250.0"), TransactionType.DEPOSIT);
 
@@ -205,7 +206,7 @@ class TransactionServiceTest {
     void testWithdrawal_BalanceDecrement() {
         Account account = new Account("Withdrawal Test", new BigDecimal("1000.0"));
         String accountId = account.getId();
-        accountRepo.saveAccount(accountId, account);
+        accountRepo.createAccount(accountId, account);
 
         TransactionRequest request = new TransactionRequest(accountId, new BigDecimal("350.0"), TransactionType.WITHDRAWAL);
 
@@ -215,5 +216,3 @@ class TransactionServiceTest {
         assertEquals(new BigDecimal("650.0"), updatedAccount.getBalance());
     }
 }
-
-
