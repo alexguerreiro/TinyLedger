@@ -81,6 +81,23 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handle DatabaseUpdateException - Returns 503 Service Unavailable
+     * This exception is thrown when database operations fail (retryable errors)
+     * The transaction has been queued for automatic retry
+     */
+    @ExceptionHandler(DatabaseUpdateException.class)
+    public ResponseEntity<Map<String, Object>> handleDatabaseUpdateException(DatabaseUpdateException ex) {
+        logger.warn("DatabaseUpdateException occurred - transaction queued for retry: {}", ex.getMessage(), ex);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Transaction not persisted, queued for retry");
+        response.put("details", ex.getMessage());
+        response.put("statusCode", HttpStatus.SERVICE_UNAVAILABLE.value());
+
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+    }
+
+    /**
      * Handle all other exceptions
      */
     @ExceptionHandler(Exception.class)

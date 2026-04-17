@@ -1,6 +1,7 @@
 package com.teya.tinyledger.repository;
 
 import com.teya.tinyledger.domain.Account;
+import com.teya.tinyledger.exception.DatabaseUpdateException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -24,7 +25,7 @@ public class AccountRepo {
     public void createAccount(String accountId, Account account) {
         Account existentAccount = getAccount(accountId);
 
-        if(existentAccount != null) {
+        if (existentAccount != null) {
             throw new IllegalArgumentException("Account with id " + accountId + " already exists");
         }
 
@@ -44,10 +45,15 @@ public class AccountRepo {
     /**
      * Atomically updates an account using per-account write locks.
      * This ensures thread-safe updates while allowing concurrent updates to different accounts.
+     * <p>
+     * If a (hypothetical) database error occurs during the update operation, a DatabaseUpdateException is thrown
+     * to signal a retryable failure. This typically represents transient database issues like
+     * connection timeouts or temporary unavailability.
      *
-     * @param accountId the account ID
+     * @param accountId      the account ID
      * @param updateFunction function to apply to the account
      * @return the updated account, or null if account doesn't exist
+     * @throws DatabaseUpdateException if a database update operation fails (retryable)
      */
     public Account updateAccountAtomically(String accountId, UnaryOperator<Account> updateFunction) {
         ReentrantReadWriteLock lock = accountLocks.computeIfAbsent(accountId, id -> new ReentrantReadWriteLock());
@@ -61,9 +67,13 @@ public class AccountRepo {
 
             // Apply the update function to create a new state
             Account updatedAccount = updateFunction.apply(currentAccount);
+            // Update the in-memory db
             accountsDB.put(accountId, updatedAccount);
 
             return updatedAccount;
+        } catch (Exception e) {
+            logger.error("Unexpected error during account update for id: {}", accountId, e);
+            throw new DatabaseUpdateException("Database update failed for account: " + accountId, e);
         } finally {
             lock.writeLock().unlock();
         }

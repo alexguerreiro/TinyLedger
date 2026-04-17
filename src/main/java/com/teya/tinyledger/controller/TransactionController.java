@@ -31,7 +31,8 @@ public class TransactionController {
     @PostMapping("/accounts/transactions")
     @Operation(
             summary = "Transaction operations (deposit or withdrawal)",
-            description = "Register a deposit or withdrawal transaction. The amount must be greater than zero.",
+            description = "Register a deposit or withdrawal transaction. The amount must be greater than zero. " +
+                    "If the transaction fails due to database issues, it will be automatically queued for retry.",
             tags = {"Transactions"}
     )
     @ApiResponses(value = {
@@ -47,6 +48,13 @@ public class TransactionController {
             @ApiResponse(
                     responseCode = "404",
                     description = "Account not found"
+            ),
+            @ApiResponse(
+                    responseCode = "503",
+                    description = "Service Unavailable. Transaction has been queued for automatic retry.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(example =
+                            "{\"message\": \"Transaction not persisted, queued for retry\", " +
+                            "\"statusCode\": 503}"))
             ),
             @ApiResponse(
                     responseCode = "500",

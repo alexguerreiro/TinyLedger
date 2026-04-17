@@ -9,8 +9,9 @@ A lightweight banking ledger application built with Spring Boot for managing acc
 - **Transaction History**: View complete transaction history sorted by timestamp
 - **Input Validation**: Comprehensive validation using Spring Bean Validation
 - **Error Handling**: Centralized error handling with proper HTTP status codes
+- **Retry logic**: Retry failed transactions in separated job
 - **API Documentation**: OpenAPI 3.0 (Swagger) documentation with interactive UI
-- **Unit Tests**: Realistic integration tests using real repository instances
+- **Unit Tests**: Realistic integration tests using real repository (in-memory map)
 
 ## Technologies
 
@@ -84,19 +85,26 @@ src/
 │   │   ├── domain/
 │   │   │   ├── Account.java                    # Account entity
 │   │   │   ├── Transaction.java                # Transaction record
-│   │   │   └── OperationType.java              # Enum for operation types
+│   │   │   ├── FailedTransaction.java          # Failed transaction record for retry queue
+│   │   │   └── TransactionType.java            # Enum for operation types
 │   │   ├── dto/
 │   │   │   ├── AccountRequest.java
 │   │   │   ├── AccountResponse.java
 │   │   │   ├── TransactionRequest.java
 │   │   │   ├── TransactionResponse.java
+│   │   │   ├── TransactionHistoryResponse.java
 │   │   │   └── BalanceResponse.java
 │   │   ├── exception/
+│   │   │   ├── AccountNotFoundException.java
+│   │   │   ├── DatabaseUpdateException.java    # Custom exception for database update failures (trggered for retryable errors)
 │   │   │   └── GlobalExceptionHandler.java     # Global exception handling
+│   │   ├── queue/
+│   │   │   └── TransactionQueue.java           # Queue for retrying failed transactions
 │   │   ├── repository/
 │   │   │   └── AccountRepo.java                # Account repository
 │   │   └── service/
 │   │       ├── AccountService.java             # Account business logic
+│   │       ├── TransactionRetryScheduler.java  # Scheduler for retrying failed transactions
 │   │       └── TransactionService.java         # Transaction business logic
 │   └── resources/
 │       └── application.properties              # Configuration
