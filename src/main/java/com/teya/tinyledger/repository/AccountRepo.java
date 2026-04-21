@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.UnaryOperator;
 
 @Component
@@ -18,9 +17,6 @@ public class AccountRepo {
 
     // simulates an account database
     private final Map<String, Account> accountsDB = new ConcurrentHashMap<>();
-
-    // Per-account locks for fine-grained concurrency control
-    private final Map<String, ReentrantReadWriteLock> accountLocks = new ConcurrentHashMap<>();
 
     public void createAccount(String accountId, Account account) {
         Account existentAccount = getAccount(accountId);
@@ -33,13 +29,7 @@ public class AccountRepo {
     }
 
     public Account getAccount(String accountId) {
-        ReentrantReadWriteLock lock = accountLocks.computeIfAbsent(accountId, id -> new ReentrantReadWriteLock());
-        lock.readLock().lock();
-        try {
-            return accountsDB.get(accountId);
-        } finally {
-            lock.readLock().unlock();
-        }
+        return accountsDB.get(accountId);
     }
 
     /**
@@ -56,26 +46,17 @@ public class AccountRepo {
      * @throws DatabaseUpdateException if a database update operation fails (retryable)
      */
     public Account updateAccountAtomically(String accountId, UnaryOperator<Account> updateFunction) {
-        ReentrantReadWriteLock lock = accountLocks.computeIfAbsent(accountId, id -> new ReentrantReadWriteLock());
-        lock.writeLock().lock();
         try {
-            Account currentAccount = accountsDB.get(accountId);
-            if (currentAccount == null) {
-                logger.error("Account not found for id: {}", accountId);
-                return null;
-            }
-
-            // Apply the update function to create a new state
-            Account updatedAccount = updateFunction.apply(currentAccount);
-            // Update the in-memory db
-            accountsDB.put(accountId, updatedAccount);
-
-            return updatedAccount;
+            return accountsDB.compute(accountId, (id, currentAccount) -> {
+                if (currentAccount == null) {
+                    logger.error("Account not found for id: {}", id);
+                    return null;
+                }
+                return updateFunction.apply(currentAccount);
+            });
         } catch (Exception e) {
             logger.error("Unexpected error during account update for id: {}", accountId, e);
             throw new DatabaseUpdateException("Database update failed for account: " + accountId, e);
-        } finally {
-            lock.writeLock().unlock();
         }
     }
 }
