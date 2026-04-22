@@ -9,7 +9,7 @@ import com.teya.tinyledger.dto.TransactionHistoryResponse;
 import com.teya.tinyledger.exception.AccountNotFoundException;
 import com.teya.tinyledger.exception.DatabaseUpdateException;
 import com.teya.tinyledger.queue.TransactionQueue;
-import com.teya.tinyledger.repository.AccountRepo;
+import com.teya.tinyledger.repository.AccountRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -24,12 +24,13 @@ import static com.teya.tinyledger.domain.TransactionType.*;
 
 @Service
 public class TransactionService {
-    private final AccountRepo accountRepo;
+    private final AccountRepository accountRepository;
     private final TransactionQueue transactionQueue;
+
     private static final Logger logger = LoggerFactory.getLogger(TransactionService.class);
 
-    public TransactionService(AccountRepo accountRepo, TransactionQueue transactionQueue) {
-        this.accountRepo = accountRepo;
+    public TransactionService(AccountRepository accountRepository, TransactionQueue transactionQueue) {
+        this.accountRepository = accountRepository;
         this.transactionQueue = transactionQueue;
     }
 
@@ -66,7 +67,7 @@ public class TransactionService {
     public void createTransactionInternal(TransactionRequest transactionRequest) {
         Transaction transaction = buildTransaction(transactionRequest.getAmount(), transactionRequest.getTransactionType());
 
-        Account updatedAccount = accountRepo.updateAccountAtomically(transactionRequest.getAccountId(),
+        Account updatedAccount = accountRepository.updateAccount(transactionRequest.getAccountId(),
                 account -> {
                     Account withTransaction = account.withTransaction(transaction);
 
@@ -90,7 +91,7 @@ public class TransactionService {
     }
 
     public TransactionHistoryResponse getTransactionHistory(String accountId) {
-        Account account = accountRepo.getAccount(accountId);
+        Account account = accountRepository.getAccount(accountId);
         if (account == null) {
             logger.error("Account not found for id: {}", accountId);
             throw new AccountNotFoundException("Account not found for id: " + accountId);
