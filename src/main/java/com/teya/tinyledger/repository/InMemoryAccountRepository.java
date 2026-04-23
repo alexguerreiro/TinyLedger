@@ -35,19 +35,12 @@ public class InMemoryAccountRepository implements AccountRepository {
     }
 
     /**
-     * Atomically updates the account stored for the given ID when that account exists.
-     * The update is performed as a single per-key operation on the backing {@link ConcurrentHashMap},
-     * so concurrent updates to the same account are serialized while updates to different accounts
-     * may still proceed independently.
-     * <p>
-     * If the account is not present, no update is applied and {@code null} is returned.
-     * If the update function throws any (hypothetical) exception, it is logged and wrapped in a
-     * {@link DatabaseUpdateException} to preserve the repository's retryable failure contract.
+     * Atomically updates an existing account.
      *
      * @param accountId the account ID to update
-     * @param updateFunction function that receives the current account value and returns the replacement value
-     * @return the updated account, or {@code null} if no account exists for the given ID
-     * @throws DatabaseUpdateException if the update function fails during the atomic update
+     * @param updateFunction function applied to the current account value
+     * @return the updated account, or {@code null} if the account does not exist
+     * @throws DatabaseUpdateException if the update fails (in a hypothetical scenario)
      */
     @Override
     public Account updateAccount(String accountId, UnaryOperator<Account> updateFunction) {

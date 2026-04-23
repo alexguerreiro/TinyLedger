@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import static org.springframework.http.HttpStatus.CREATED;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/accounts/{accountId}/transactions")
 @Tag(name = "Transactions", description = "APIs for managing account transactions (deposits and withdrawals)")
 public class TransactionController {
 
@@ -28,22 +28,21 @@ public class TransactionController {
         this.transactionService = transactionService;
     }
 
-    @PostMapping("/accounts/transactions")
+    @PostMapping
     @Operation(
-            summary = "Transaction operations (deposit or withdrawal)",
-            description = "Register a deposit or withdrawal transaction. The amount must be greater than zero. " +
-                    "If the transaction fails due to database issues, it will be automatically queued for retry.",
+            summary = "Create a transaction for an account",
+            description = "Creates a deposit or withdrawal transaction for the specified account.",
             tags = {"Transactions"}
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "201",
-                    description = "Transaction processed successfully",
+                    description = "Transaction created successfully",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = TransactionResponse.class))
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Invalid request - amount must be positive, account ID is required"
+                    description = "Invalid request - amount must be positive"
             ),
             @ApiResponse(
                     responseCode = "404",
@@ -61,13 +60,22 @@ public class TransactionController {
                     description = "Internal server error"
             )
     })
-    public ResponseEntity<TransactionResponse> create(@Valid @RequestBody TransactionRequest transactionRequest) {
-        transactionService.createTransaction(transactionRequest);
-        TransactionResponse response = new TransactionResponse("Transaction processed successfully", CREATED.value());
+    public ResponseEntity<TransactionResponse> createTransaction(
+            @Parameter(description = "The unique identifier of the account", required = true)
+            @PathVariable String accountId,
+            @Valid @RequestBody TransactionRequest transactionRequest) {
+        var transaction = transactionService.addTransaction(accountId, transactionRequest);
+        TransactionResponse response = new TransactionResponse(
+                transaction.id(),
+                accountId,
+                transaction.amount(),
+                transaction.transactionType(),
+                transaction.createdAt()
+        );
         return ResponseEntity.status(CREATED).body(response);
     }
 
-    @GetMapping("/accounts/{accountId}/transactions")
+    @GetMapping
     @Operation(
             summary = "Get transaction history for an account",
             description = "Retrieves the complete transaction history for the specified account, sorted by timestamp with most recent transactions first.",
@@ -95,5 +103,3 @@ public class TransactionController {
         return ResponseEntity.ok(history);
     }
 }
-
-

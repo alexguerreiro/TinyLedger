@@ -49,26 +49,20 @@ public final class Account {
     }
 
     /**
-     * Creates a new Account with updated balance (immutable pattern).
+     * Creates a new Account with the given transaction applied to both the balance and transaction history.
      *
-     * @param newBalance the new balance
-     * @return a new Account instance with the updated balance
+     * @param transaction the transaction to apply
+     * @return a new Account instance reflecting the applied transaction
      */
-    public Account withBalance(BigDecimal newBalance) {
-        Set<Transaction> transactionsCopy = new HashSet<>(this.transactions);
-        return new Account(this.id, this.name, newBalance, transactionsCopy);
-    }
-
-    /**
-     * Creates a new Account with an additional transaction (immutable pattern).
-     *
-     * @param transaction the transaction to add
-     * @return a new Account instance with the additional transaction
-     */
-    public Account withTransaction(Transaction transaction) {
+    public Account applyTransaction(Transaction transaction) {
         Set<Transaction> transactionsCopy = new HashSet<>(this.transactions);
         transactionsCopy.add(transaction);
-        return new Account(this.id, this.name, this.balance, transactionsCopy);
+
+        BigDecimal newBalance = transaction.transactionType() == TransactionType.DEPOSIT
+                ? this.balance.add(transaction.amount())
+                : this.balance.subtract(transaction.amount());
+
+        return new Account(this.id, this.name, newBalance, transactionsCopy);
     }
 
     @Override

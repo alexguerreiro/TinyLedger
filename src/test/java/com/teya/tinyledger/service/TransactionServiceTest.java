@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
 
@@ -25,14 +26,16 @@ import static org.junit.jupiter.api.Assertions.*;
 class TransactionServiceTest {
 
     private AccountRepository accountRepository;
+    private AccountService accountService;
     private TransactionQueue transactionQueue;
     private TransactionService transactionService;
 
     @BeforeEach
     void setUp() {
         accountRepository = new InMemoryAccountRepository();
+        accountService = new AccountService(accountRepository);
         transactionQueue = new TransactionQueue();
-        transactionService = new TransactionService(accountRepository, transactionQueue);
+        transactionService = new TransactionService(accountRepository, accountService, transactionQueue);
     }
 
     @Test
@@ -43,9 +46,9 @@ class TransactionServiceTest {
         accountRepository.createAccount(accountId, account);
 
         BigDecimal depositAmount = new BigDecimal("500.0");
-        TransactionRequest request = new TransactionRequest(accountId, depositAmount, TransactionType.DEPOSIT);
+        TransactionRequest request = new TransactionRequest(depositAmount, TransactionType.DEPOSIT);
 
-        transactionService.createTransaction(request);
+        transactionService.addTransaction(accountId, request);
 
         Account updatedAccount = accountRepository.getAccount(accountId);
         assertNotNull(updatedAccount);
@@ -61,9 +64,9 @@ class TransactionServiceTest {
         accountRepository.createAccount(accountId, account);
 
         BigDecimal withdrawalAmount = new BigDecimal("300.0");
-        TransactionRequest request = new TransactionRequest(accountId, withdrawalAmount, TransactionType.WITHDRAWAL);
+        TransactionRequest request = new TransactionRequest(withdrawalAmount, TransactionType.WITHDRAWAL);
 
-        transactionService.createTransaction(request);
+        transactionService.addTransaction(accountId, request);
 
         Account updatedAccount = accountRepository.getAccount(accountId);
         assertNotNull(updatedAccount);
@@ -76,11 +79,11 @@ class TransactionServiceTest {
     void testAddDeposit_AccountNotFound() {
         String nonExistentAccountId = UUID.randomUUID().toString();
         BigDecimal depositAmount = new BigDecimal("100.0");
-        TransactionRequest request = new TransactionRequest(nonExistentAccountId, depositAmount, TransactionType.DEPOSIT);
+        TransactionRequest request = new TransactionRequest(depositAmount, TransactionType.DEPOSIT);
 
         // AccountNotFoundException should be thrown directly to the caller, not added to retry queue
         AccountNotFoundException exception = assertThrows(AccountNotFoundException.class, () -> {
-            transactionService.createTransaction(request);
+            transactionService.addTransaction(nonExistentAccountId, request);
         });
 
         assertTrue(exception.getMessage().contains("Account not found"));
@@ -93,11 +96,11 @@ class TransactionServiceTest {
     void testAddWithdrawal_AccountNotFound() {
         String nonExistentAccountId = UUID.randomUUID().toString();
         BigDecimal withdrawalAmount = new BigDecimal("100.0");
-        TransactionRequest request = new TransactionRequest(nonExistentAccountId, withdrawalAmount, TransactionType.WITHDRAWAL);
+        TransactionRequest request = new TransactionRequest(withdrawalAmount, TransactionType.WITHDRAWAL);
 
         // AccountNotFoundException should be thrown directly to the caller, not added to retry queue
         AccountNotFoundException exception = assertThrows(AccountNotFoundException.class, () -> {
-            transactionService.createTransaction(request);
+            transactionService.addTransaction(nonExistentAccountId, request);
         });
 
         assertTrue(exception.getMessage().contains("Account not found"));
@@ -124,14 +127,15 @@ class TransactionServiceTest {
                 throw new DatabaseUpdateException("DB down");
             }
         };
+        AccountService accountService = new AccountService(accountRepository);
         TransactionQueue transactionQueue = new TransactionQueue();
-        TransactionService transactionService = new TransactionService(accountRepository, transactionQueue);
+        TransactionService transactionService = new TransactionService(accountRepository, accountService, transactionQueue);
 
         TransactionRequest request =
-                new TransactionRequest(accountId, new BigDecimal("100.0"), TransactionType.DEPOSIT);
+                new TransactionRequest(new BigDecimal("100.0"), TransactionType.DEPOSIT);
 
         DatabaseUpdateException exception = assertThrows(DatabaseUpdateException.class, () -> {
-            transactionService.createTransaction(request);
+            transactionService.addTransaction(accountId, request);
         });
 
         assertEquals("DB down", exception.getMessage());
@@ -147,15 +151,15 @@ class TransactionServiceTest {
         String accountId = account.getId();
         accountRepository.createAccount(accountId, account);
 
-        TransactionRequest depositRequest1 = new TransactionRequest(accountId, new BigDecimal("500.0"), TransactionType.DEPOSIT);
-        TransactionRequest withdrawalRequest1 = new TransactionRequest(accountId, new BigDecimal("200.0"), TransactionType.WITHDRAWAL);
-        TransactionRequest depositRequest2 = new TransactionRequest(accountId, new BigDecimal("300.0"), TransactionType.DEPOSIT);
-        TransactionRequest withdrawalRequest2 = new TransactionRequest(accountId, new BigDecimal("100.0"), TransactionType.WITHDRAWAL);
+        TransactionRequest depositRequest1 = new TransactionRequest(new BigDecimal("500.0"), TransactionType.DEPOSIT);
+        TransactionRequest withdrawalRequest1 = new TransactionRequest(new BigDecimal("200.0"), TransactionType.WITHDRAWAL);
+        TransactionRequest depositRequest2 = new TransactionRequest(new BigDecimal("300.0"), TransactionType.DEPOSIT);
+        TransactionRequest withdrawalRequest2 = new TransactionRequest(new BigDecimal("100.0"), TransactionType.WITHDRAWAL);
 
-        transactionService.createTransaction(depositRequest1);      // 1500
-        transactionService.createTransaction(withdrawalRequest1); // 1300
-        transactionService.createTransaction(depositRequest2);      // 1600
-        transactionService.createTransaction(withdrawalRequest2); // 1500
+        transactionService.addTransaction(accountId, depositRequest1);      // 1500
+        transactionService.addTransaction(accountId, withdrawalRequest1); // 1300
+        transactionService.addTransaction(accountId, depositRequest2);      // 1600
+        transactionService.addTransaction(accountId, withdrawalRequest2); // 1500
 
         Account updatedAccount = accountRepository.getAccount(accountId);
         assertNotNull(updatedAccount);
@@ -170,9 +174,9 @@ class TransactionServiceTest {
         String accountId = account.getId();
         accountRepository.createAccount(accountId, account);
 
-        TransactionRequest request = new TransactionRequest(accountId, new BigDecimal("250.0"), TransactionType.DEPOSIT);
+        TransactionRequest request = new TransactionRequest(new BigDecimal("250.0"), TransactionType.DEPOSIT);
 
-        transactionService.createTransaction(request);
+        transactionService.addTransaction(accountId, request);
 
         Account updatedAccount = accountRepository.getAccount(accountId);
         assertEquals(new BigDecimal("750.0"), updatedAccount.getBalance());
@@ -185,9 +189,9 @@ class TransactionServiceTest {
         String accountId = account.getId();
         accountRepository.createAccount(accountId, account);
 
-        TransactionRequest request = new TransactionRequest(accountId, new BigDecimal("350.0"), TransactionType.WITHDRAWAL);
+        TransactionRequest request = new TransactionRequest(new BigDecimal("350.0"), TransactionType.WITHDRAWAL);
 
-        transactionService.createTransaction(request);
+        transactionService.addTransaction(accountId, request);
 
         Account updatedAccount = accountRepository.getAccount(accountId);
         assertEquals(new BigDecimal("650.0"), updatedAccount.getBalance());
@@ -219,10 +223,9 @@ class TransactionServiceTest {
                 TransactionType.DEPOSIT
         );
 
-        // Use immutable factory methods to add transactions
-        Account accountWithT1 = account.withTransaction(t1);
-        Account accountWithT2 = accountWithT1.withTransaction(t2);
-        Account accountWithT3 = accountWithT2.withTransaction(t3);
+        Account accountWithT1 = account.applyTransaction(t1);
+        Account accountWithT2 = accountWithT1.applyTransaction(t2);
+        Account accountWithT3 = accountWithT2.applyTransaction(t3);
         accountRepository.createAccount(accountId, accountWithT3);
 
         TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId);
@@ -230,9 +233,14 @@ class TransactionServiceTest {
         assertNotNull(history);
         assertEquals(accountId, history.getAccountId());
         assertEquals("Test User", history.getAccountName());
-        assertEquals(new BigDecimal("250.0"), history.getCurrentBalance());
+        assertEquals(new BigDecimal("500.0"), history.getCurrentBalance());
         assertEquals(3, history.getTransactionCount());
         assertEquals(3, history.getTransactions().size());
+
+        List<Transaction> transactions = history.getTransactions().stream().toList();
+        assertEquals(t2.id(), transactions.get(0).id());
+        assertEquals(t1.id(), transactions.get(1).id());
+        assertEquals(t3.id(), transactions.get(2).id());
     }
 
     @Test

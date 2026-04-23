@@ -39,14 +39,14 @@ public class TransactionRetryScheduler {
             return;
         }
 
-        logger.info("Starting retry process. {} transactions in retry queue", queueSize);
-
         FailedTransaction failedTransaction;
         while ((failedTransaction = transactionQueue.pollRetryQueue()) != null) {
             try {
-                transactionService.createTransactionInternal(failedTransaction.getTransactionRequest());
+                transactionService.addTransactionInternal(
+                        failedTransaction.getAccountId(),
+                        failedTransaction.getTransactionRequest());
             } catch (Exception e) {
-                logger.error("Transaction retry failed for account: {}", failedTransaction.getTransactionRequest().getAccountId(), e);
+                logger.error("Transaction retry failed for account: {}", failedTransaction.getAccountId(), e);
 
                 failedTransaction.incrementRetryCount();
 
@@ -59,4 +59,3 @@ public class TransactionRetryScheduler {
         }
     }
 }
-

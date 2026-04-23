@@ -10,16 +10,22 @@ import java.time.LocalDateTime;
  * Tracks the number of retry attempts and the last failure reason.
  */
 public class FailedTransaction implements Serializable {
+    private final String accountId;
     private final TransactionRequest transactionRequest;
     private int retryCount;
     private LocalDateTime createdAt;
     private LocalDateTime lastRetryAt;
 
-    public FailedTransaction(TransactionRequest transactionRequest) {
+    public FailedTransaction(String accountId, TransactionRequest transactionRequest) {
+        this.accountId = accountId;
         this.transactionRequest = transactionRequest;
         this.retryCount = 0;
         this.createdAt = LocalDateTime.now();
         this.lastRetryAt = LocalDateTime.now();
+    }
+
+    public String getAccountId() {
+        return accountId;
     }
 
     public TransactionRequest getTransactionRequest() {
@@ -43,4 +49,3 @@ public class FailedTransaction implements Serializable {
         return lastRetryAt;
     }
 }
-

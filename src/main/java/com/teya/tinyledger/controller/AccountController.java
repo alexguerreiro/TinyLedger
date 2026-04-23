@@ -3,7 +3,6 @@ package com.teya.tinyledger.controller;
 import com.teya.tinyledger.domain.Account;
 import com.teya.tinyledger.dto.AccountRequest;
 import com.teya.tinyledger.dto.AccountResponse;
-import com.teya.tinyledger.dto.BalanceResponse;
 import com.teya.tinyledger.service.AccountService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -15,10 +14,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
+
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/accounts")
 @Tag(name = "Accounts", description = "APIs for managing ledger accounts")
 public class AccountController {
 
@@ -28,10 +30,10 @@ public class AccountController {
         this.accountService = accountService;
     }
 
-    @PostMapping("/accounts")
+    @PostMapping
     @Operation(
             summary = "Create a new account",
-            description = "Creates a new account with the specified name and initial balance. The account ID is automatically generated as a UUID.",
+            description = "Creates a new account with the specified name and initial balance.",
             tags = {"Accounts"}
     )
     @ApiResponses(value = {
@@ -51,28 +53,23 @@ public class AccountController {
     })
     public ResponseEntity<AccountResponse> createAccount(@Valid @RequestBody AccountRequest accountRequest) {
         Account account = accountService.createAccount(accountRequest);
-        AccountResponse response = new AccountResponse(
-                account.getId(),
-                account.getName(),
-                account.getBalance(),
-                "Account created successfully",
-                HttpStatus.CREATED.value()
-        );
+        AccountResponse response = new AccountResponse(account.getId(), account.getName(), account.getBalance());
+
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @GetMapping("/accounts/{accountId}/balance")
+    @GetMapping("/{accountId}")
     @Operation(
-            summary = "Get account balance",
-            description = "Retrieves the current balance and account information for the specified account.",
+            summary = "Get an account",
+            description = "Retrieves the current representation of the specified account.",
             tags = {"Accounts"}
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Account balance retrieved successfully",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = BalanceResponse.class))
-            ),
+                    description = "Account retrieved successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = AccountResponse.class))
+                ),
             @ApiResponse(
                     responseCode = "404",
                     description = "Account not found"
@@ -82,11 +79,10 @@ public class AccountController {
                     description = "Internal server error"
             )
     })
-    public ResponseEntity<BalanceResponse> getAccountBalance(
+    public ResponseEntity<AccountResponse> getAccount(
             @Parameter(description = "The unique identifier of the account", required = true)
             @PathVariable String accountId) {
-        BalanceResponse balance = accountService.getAccountBalance(accountId);
-        return ResponseEntity.ok(balance);
+        AccountResponse account = accountService.getAccount(accountId);
+        return ResponseEntity.ok(account);
     }
 }
-

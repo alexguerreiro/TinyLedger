@@ -60,10 +60,9 @@ public class TransactionQueue {
         if (failedTransaction.getRetryCount() >= MAX_RETRY_ATTEMPTS) {
             deadLetterQueue.add(failedTransaction);
             logger.warn("Transaction moved to dead letter queue after {} failed attempts for account: {}",
-                MAX_RETRY_ATTEMPTS, failedTransaction.getTransactionRequest().getAccountId());
+                MAX_RETRY_ATTEMPTS, failedTransaction.getAccountId());
             return true;
         }
         return false;
     }
 }
-

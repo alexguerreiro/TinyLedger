@@ -25,12 +25,16 @@ import static com.teya.tinyledger.domain.TransactionType.*;
 @Service
 public class TransactionService {
     private final AccountRepository accountRepository;
+    private final AccountService accountService;
     private final TransactionQueue transactionQueue;
 
     private static final Logger logger = LoggerFactory.getLogger(TransactionService.class);
 
-    public TransactionService(AccountRepository accountRepository, TransactionQueue transactionQueue) {
+    public TransactionService(AccountRepository accountRepository,
+                              AccountService accountService,
+                              TransactionQueue transactionQueue) {
         this.accountRepository = accountRepository;
+        this.accountService = accountService;
         this.transactionQueue = transactionQueue;
     }
 
@@ -43,18 +47,20 @@ public class TransactionService {
      * @throws DatabaseUpdateException if a database error occurs during transaction processing (retryable)
      * @throws AccountNotFoundException if the account is not found
      */
-    public void createTransaction(TransactionRequest transactionRequest) {
+    public Transaction addTransaction(String accountId, TransactionRequest transactionRequest) {
         try {
-            createTransactionInternal(transactionRequest);
+            return addTransactionInternal(accountId, transactionRequest);
         } catch (DatabaseUpdateException e) {
             logger.error("Transaction creation failed with database error for account: {}. Adding to retry queue.",
-                transactionRequest.getAccountId(), e);
-
-            FailedTransaction failedTransaction = new FailedTransaction(transactionRequest);
-            transactionQueue.addToRetryQueue(failedTransaction);
-
+                accountId, e);
+            addTransactionToQueue(accountId, transactionRequest);
             throw e;
         }
+    }
+
+    private void addTransactionToQueue(String accountId, TransactionRequest transactionRequest){
+        FailedTransaction failedTransaction = new FailedTransaction(accountId, transactionRequest);
+        transactionQueue.addToRetryQueue(failedTransaction);
     }
 
     /**
@@ -64,26 +70,14 @@ public class TransactionService {
      * @param transactionRequest the transaction request to process
      * @throws AccountNotFoundException if the account is not found
      */
-    public void createTransactionInternal(TransactionRequest transactionRequest) {
+    public Transaction addTransactionInternal(String accountId, TransactionRequest transactionRequest) {
+        accountService.validateAccountExists(accountId);
+
         Transaction transaction = buildTransaction(transactionRequest.getAmount(), transactionRequest.getTransactionType());
 
-        Account updatedAccount = accountRepository.updateAccount(transactionRequest.getAccountId(),
-                account -> {
-                    Account withTransaction = account.withTransaction(transaction);
-
-                    // Calculate new balance
-                    BigDecimal newBalance = transactionRequest.getTransactionType() == DEPOSIT
-                            ? withTransaction.getBalance().add(transaction.amount())
-                            : withTransaction.getBalance().subtract(transaction.amount());
-
-                    // Return account with updated balance
-                    return withTransaction.withBalance(newBalance);
-                });
-
-        if (updatedAccount == null) {
-            logger.error("Account not found for id: {}", transactionRequest.getAccountId());
-            throw new AccountNotFoundException("Account not found for id: " + transactionRequest.getAccountId());
-        }
+        accountRepository.updateAccount(accountId, account ->
+                account.applyTransaction(transaction));
+        return transaction;
     }
 
     private Transaction buildTransaction(BigDecimal amount, TransactionType transactionType) {
@@ -91,11 +85,7 @@ public class TransactionService {
     }
 
     public TransactionHistoryResponse getTransactionHistory(String accountId) {
-        Account account = accountRepository.getAccount(accountId);
-        if (account == null) {
-            logger.error("Account not found for id: {}", accountId);
-            throw new AccountNotFoundException("Account not found for id: " + accountId);
-        }
+        Account account = accountService.validateAccountExists(accountId);
 
         // Sort transactions by created at in descending order (most recent first)
         Set<Transaction> sortedTransactions = account.getTransactions().stream()

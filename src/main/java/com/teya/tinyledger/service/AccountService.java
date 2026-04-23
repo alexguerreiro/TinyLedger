@@ -2,7 +2,7 @@ package com.teya.tinyledger.service;
 
 import com.teya.tinyledger.domain.Account;
 import com.teya.tinyledger.dto.AccountRequest;
-import com.teya.tinyledger.dto.BalanceResponse;
+import com.teya.tinyledger.dto.AccountResponse;
 import com.teya.tinyledger.exception.AccountNotFoundException;
 import com.teya.tinyledger.repository.AccountRepository;
 import org.slf4j.Logger;
@@ -24,13 +24,17 @@ public class AccountService {
         return account;
     }
 
-    public BalanceResponse getAccountBalance(String accountId) {
+    public Account validateAccountExists(String accountId) {
         Account account = accountRepository.getAccount(accountId);
         if(account == null) {
             logger.error("Account not found for id: {}", accountId);
             throw new AccountNotFoundException("Account not found for id: " + accountId);
         }
-        return new BalanceResponse(account.getId(), account.getName(), account.getBalance());
+        return account;
+    }
+
+    public AccountResponse getAccount(String accountId) {
+        Account account = validateAccountExists(accountId);
+        return new AccountResponse(account.getId(), account.getName(), account.getBalance());
     }
 }
-

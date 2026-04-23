@@ -1,12 +1,16 @@
 package com.teya.tinyledger.repository;
 
 import com.teya.tinyledger.domain.Account;
+import com.teya.tinyledger.domain.Transaction;
+import com.teya.tinyledger.domain.TransactionType;
 import com.teya.tinyledger.exception.DatabaseUpdateException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -52,7 +56,7 @@ class InMemoryAccountRepositoryTest {
     @Test
     @DisplayName("Should return null when updating a missing account")
     void updateAccount_ShouldReturnNullWhenMissing() {
-        Account updatedAccount = accountRepo.updateAccount("missing-id", account -> account.withBalance(BigDecimal.TEN));
+        Account updatedAccount = accountRepo.updateAccount("missing-id", account -> account);
 
         assertNull(updatedAccount);
     }
@@ -62,13 +66,20 @@ class InMemoryAccountRepositoryTest {
     void updateAccount_ShouldApplyUpdateFunction() {
         Account account = new Account("Test", new BigDecimal("100.0"));
         accountRepo.createAccount(account.getId(), account);
+        Transaction deposit = new Transaction(
+                UUID.randomUUID().toString(),
+                LocalDateTime.of(2026, 4, 23, 12, 0),
+                new BigDecimal("50.0"),
+                TransactionType.DEPOSIT
+        );
 
         Account updatedAccount = accountRepo.updateAccount(account.getId(),
-                existing -> existing.withBalance(new BigDecimal("150.0")));
+                existing -> existing.applyTransaction(deposit));
 
         assertNotNull(updatedAccount);
         assertEquals(new BigDecimal("150.0"), updatedAccount.getBalance());
         assertEquals(new BigDecimal("150.0"), accountRepo.getAccount(account.getId()).getBalance());
+        assertEquals(1, updatedAccount.getTransactions().size());
     }
 
     @Test
