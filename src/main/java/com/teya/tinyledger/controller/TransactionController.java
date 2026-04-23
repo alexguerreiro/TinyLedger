@@ -64,7 +64,7 @@ public class TransactionController {
             @Parameter(description = "The unique identifier of the account", required = true)
             @PathVariable String accountId,
             @Valid @RequestBody TransactionRequest transactionRequest) {
-        var transaction = transactionService.addTransaction(accountId, transactionRequest);
+        var transaction = transactionService.addTransaction(accountId, transactionRequest, true);
         TransactionResponse response = new TransactionResponse(
                 transaction.id(),
                 accountId,
@@ -98,8 +98,15 @@ public class TransactionController {
     })
     public ResponseEntity<TransactionHistoryResponse> getTransactionHistory(
             @Parameter(description = "The unique identifier of the account", required = true)
-            @PathVariable String accountId) {
-        TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId);
+            @PathVariable String accountId,
+
+            @Parameter(description = "Page number (0-based)", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+
+            @Parameter(description = "Number of items per page", example = "10")
+            @RequestParam(defaultValue = "10") int pageSize
+    ) {
+        TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId, page, pageSize);
         return ResponseEntity.ok(history);
     }
 }

@@ -21,10 +21,11 @@ import java.util.UUID;
 import java.util.function.UnaryOperator;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 @DisplayName("TransactionService Integration Tests")
 class TransactionServiceTest {
-
+    private static final boolean RETRY = true;
     private AccountRepository accountRepository;
     private AccountService accountService;
     private TransactionQueue transactionQueue;
@@ -48,7 +49,7 @@ class TransactionServiceTest {
         BigDecimal depositAmount = new BigDecimal("500.0");
         TransactionRequest request = new TransactionRequest(depositAmount, TransactionType.DEPOSIT);
 
-        transactionService.addTransaction(accountId, request);
+        transactionService.addTransaction(accountId, request, RETRY);
 
         Account updatedAccount = accountRepository.getAccount(accountId);
         assertNotNull(updatedAccount);
@@ -66,7 +67,7 @@ class TransactionServiceTest {
         BigDecimal withdrawalAmount = new BigDecimal("300.0");
         TransactionRequest request = new TransactionRequest(withdrawalAmount, TransactionType.WITHDRAWAL);
 
-        transactionService.addTransaction(accountId, request);
+        transactionService.addTransaction(accountId, request, RETRY);
 
         Account updatedAccount = accountRepository.getAccount(accountId);
         assertNotNull(updatedAccount);
@@ -81,9 +82,8 @@ class TransactionServiceTest {
         BigDecimal depositAmount = new BigDecimal("100.0");
         TransactionRequest request = new TransactionRequest(depositAmount, TransactionType.DEPOSIT);
 
-        // AccountNotFoundException should be thrown directly to the caller, not added to retry queue
         AccountNotFoundException exception = assertThrows(AccountNotFoundException.class, () -> {
-            transactionService.addTransaction(nonExistentAccountId, request);
+            transactionService.addTransaction(nonExistentAccountId, request, RETRY);
         });
 
         assertTrue(exception.getMessage().contains("Account not found"));
@@ -98,9 +98,8 @@ class TransactionServiceTest {
         BigDecimal withdrawalAmount = new BigDecimal("100.0");
         TransactionRequest request = new TransactionRequest(withdrawalAmount, TransactionType.WITHDRAWAL);
 
-        // AccountNotFoundException should be thrown directly to the caller, not added to retry queue
         AccountNotFoundException exception = assertThrows(AccountNotFoundException.class, () -> {
-            transactionService.addTransaction(nonExistentAccountId, request);
+            transactionService.addTransaction(nonExistentAccountId, request, RETRY);
         });
 
         assertTrue(exception.getMessage().contains("Account not found"));
@@ -135,7 +134,7 @@ class TransactionServiceTest {
                 new TransactionRequest(new BigDecimal("100.0"), TransactionType.DEPOSIT);
 
         DatabaseUpdateException exception = assertThrows(DatabaseUpdateException.class, () -> {
-            transactionService.addTransaction(accountId, request);
+            transactionService.addTransaction(accountId, request, RETRY);
         });
 
         assertEquals("DB down", exception.getMessage());
@@ -156,10 +155,10 @@ class TransactionServiceTest {
         TransactionRequest depositRequest2 = new TransactionRequest(new BigDecimal("300.0"), TransactionType.DEPOSIT);
         TransactionRequest withdrawalRequest2 = new TransactionRequest(new BigDecimal("100.0"), TransactionType.WITHDRAWAL);
 
-        transactionService.addTransaction(accountId, depositRequest1);      // 1500
-        transactionService.addTransaction(accountId, withdrawalRequest1); // 1300
-        transactionService.addTransaction(accountId, depositRequest2);      // 1600
-        transactionService.addTransaction(accountId, withdrawalRequest2); // 1500
+        transactionService.addTransaction(accountId, depositRequest1, RETRY);      // 1500
+        transactionService.addTransaction(accountId, withdrawalRequest1, RETRY); // 1300
+        transactionService.addTransaction(accountId, depositRequest2, RETRY);      // 1600
+        transactionService.addTransaction(accountId, withdrawalRequest2, RETRY); // 1500
 
         Account updatedAccount = accountRepository.getAccount(accountId);
         assertNotNull(updatedAccount);
@@ -176,7 +175,7 @@ class TransactionServiceTest {
 
         TransactionRequest request = new TransactionRequest(new BigDecimal("250.0"), TransactionType.DEPOSIT);
 
-        transactionService.addTransaction(accountId, request);
+        transactionService.addTransaction(accountId, request, RETRY);
 
         Account updatedAccount = accountRepository.getAccount(accountId);
         assertEquals(new BigDecimal("750.0"), updatedAccount.getBalance());
@@ -191,7 +190,7 @@ class TransactionServiceTest {
 
         TransactionRequest request = new TransactionRequest(new BigDecimal("350.0"), TransactionType.WITHDRAWAL);
 
-        transactionService.addTransaction(accountId, request);
+        transactionService.addTransaction(accountId, request, RETRY);
 
         Account updatedAccount = accountRepository.getAccount(accountId);
         assertEquals(new BigDecimal("650.0"), updatedAccount.getBalance());
@@ -228,7 +227,7 @@ class TransactionServiceTest {
         Account accountWithT3 = accountWithT2.applyTransaction(t3);
         accountRepository.createAccount(accountId, accountWithT3);
 
-        TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId);
+        TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId, 0, 10);
 
         assertNotNull(history);
         assertEquals(accountId, history.getAccountId());
@@ -249,7 +248,7 @@ class TransactionServiceTest {
         String nonExistentAccountId = UUID.randomUUID().toString();
 
         AccountNotFoundException exception = assertThrows(AccountNotFoundException.class, () -> {
-            transactionService.getTransactionHistory(nonExistentAccountId);
+            transactionService.getTransactionHistory(nonExistentAccountId, 0, 20);
         });
 
         assertTrue(exception.getMessage().contains("Account not found"));
@@ -262,7 +261,7 @@ class TransactionServiceTest {
         String accountId = account.getId();
         accountRepository.createAccount(accountId, account);
 
-        TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId);
+        TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId, 0, 20);
 
         assertNotNull(history);
         assertEquals(0, history.getTransactionCount());

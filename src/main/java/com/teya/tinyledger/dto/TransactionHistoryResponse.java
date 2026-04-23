@@ -3,16 +3,17 @@ package com.teya.tinyledger.dto;
 import com.teya.tinyledger.domain.Transaction;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Set;
 
 public class TransactionHistoryResponse {
     private String accountId;
     private String accountName;
     private BigDecimal currentBalance;
-    private Set<Transaction> transactions;
+    private List<Transaction> transactions;
     private Integer transactionCount;
 
-    public TransactionHistoryResponse(String accountId, String accountName, BigDecimal currentBalance, Set<Transaction> transactions) {
+    public TransactionHistoryResponse(String accountId, String accountName, BigDecimal currentBalance, List<Transaction> transactions) {
         this.accountId = accountId;
         this.accountName = accountName;
         this.currentBalance = currentBalance;
@@ -32,7 +33,7 @@ public class TransactionHistoryResponse {
         return currentBalance;
     }
 
-    public Set<Transaction> getTransactions() {
+    public List<Transaction> getTransactions() {
         return transactions;
     }
 

@@ -42,9 +42,8 @@ public class TransactionRetryScheduler {
         FailedTransaction failedTransaction;
         while ((failedTransaction = transactionQueue.pollRetryQueue()) != null) {
             try {
-                transactionService.addTransactionInternal(
-                        failedTransaction.getAccountId(),
-                        failedTransaction.getTransactionRequest());
+                transactionService.addTransaction(failedTransaction.getAccountId(),
+                        failedTransaction.getTransactionRequest(), false);
             } catch (Exception e) {
                 logger.error("Transaction retry failed for account: {}", failedTransaction.getAccountId(), e);
 
