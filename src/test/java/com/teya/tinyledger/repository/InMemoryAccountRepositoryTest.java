@@ -3,6 +3,7 @@ package com.teya.tinyledger.repository;
 import com.teya.tinyledger.domain.Account;
 import com.teya.tinyledger.domain.Transaction;
 import com.teya.tinyledger.domain.TransactionType;
+import com.teya.tinyledger.exception.AccountNotFoundException;
 import com.teya.tinyledger.exception.DatabaseUpdateException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.function.UnaryOperator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -54,11 +56,19 @@ class InMemoryAccountRepositoryTest {
     }
 
     @Test
-    @DisplayName("Should return null when updating a missing account")
-    void updateAccount_ShouldReturnNullWhenMissing() {
-        Account updatedAccount = accountRepo.updateAccount("missing-id", account -> account);
+    @DisplayName("Should Throw AccountNotFoundException")
+    void shouldThrowAccountNotFoundException_whenAccountDoesNotExist() {
+        String nonExistentAccountId = "acc-123";
 
-        assertNull(updatedAccount);
+        UnaryOperator<Account> updateFunction = acc ->
+                new Account("Test", new BigDecimal("100.0"));;
+
+        AccountNotFoundException exception = assertThrows(
+                AccountNotFoundException.class,
+                () -> accountRepo.updateAccount(nonExistentAccountId, updateFunction)
+        );
+
+        assertEquals("Account not found: " + nonExistentAccountId, exception.getMessage());
     }
 
     @Test
@@ -66,6 +76,7 @@ class InMemoryAccountRepositoryTest {
     void updateAccount_ShouldApplyUpdateFunction() {
         Account account = new Account("Test", new BigDecimal("100.0"));
         accountRepo.createAccount(account.getId(), account);
+
         Transaction deposit = new Transaction(
                 UUID.randomUUID().toString(),
                 LocalDateTime.of(2026, 4, 23, 12, 0),

@@ -1,6 +1,7 @@
 package com.teya.tinyledger.repository;
 
 import com.teya.tinyledger.domain.Account;
+import com.teya.tinyledger.exception.AccountNotFoundException;
 import com.teya.tinyledger.exception.DatabaseUpdateException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,14 +40,22 @@ public class InMemoryAccountRepository implements AccountRepository {
      *
      * @param accountId the account ID to update
      * @param updateFunction function applied to the current account value
-     * @return the updated account, or {@code null} if the account does not exist
+     * @return Account - the updated account
+     * @throws AccountNotFoundException if the update does not exist
      * @throws DatabaseUpdateException if the update fails (in a hypothetical scenario)
      */
     @Override
     public Account updateAccount(String accountId, UnaryOperator<Account> updateFunction) {
         try {
-            return accountsDB.computeIfPresent(
-                    accountId, (id, currentAccount) -> updateFunction.apply(currentAccount));
+            return accountsDB.compute(accountId, (_, acc) -> {
+                if (acc == null) {
+                    throw new AccountNotFoundException("Account not found: " + accountId);
+                }
+                return updateFunction.apply(acc);
+            });
+        } catch (AccountNotFoundException e){
+            logger.error("Account not found for id: {}", accountId, e);
+            throw e;
         } catch (Exception e) {
             logger.error("Unexpected error during account update for id: {}", accountId, e);
             throw new DatabaseUpdateException("Database update failed for account: " + accountId, e);
