@@ -1,7 +1,7 @@
 package com.teya.tinyledger.service;
 
 import com.teya.tinyledger.domain.FailedTransaction;
-import com.teya.tinyledger.exception.DatabaseUpdateException;
+import com.teya.tinyledger.exception.RetryableException;
 import com.teya.tinyledger.queue.TransactionRetryQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,8 +43,8 @@ public class TransactionRetryScheduler {
         FailedTransaction failedTransaction;
         while ((failedTransaction = transactionRetryQueue.pollRetryQueue()) != null) {
             try {
-                transactionService.retry(failedTransaction.getAccountId(), failedTransaction.getTransaction());
-            } catch (DatabaseUpdateException e) {
+                transactionService.retryAddTransaction(failedTransaction.getAccountId(), failedTransaction.getTransaction());
+            } catch (RetryableException e) {
                 logger.error("Transaction retry failed for transaction id: {}", failedTransaction.getTransaction().id(), e);
 
                 failedTransaction.incrementRetryCount();

@@ -54,13 +54,10 @@ public class InMemoryAccountRepository implements AccountRepository {
                 }
                 return updateFunction.apply(acc);
             });
-        } catch (AccountNotFoundException e){
-            logger.error("Account not found for id: {}", accountId, e);
+        } catch (AccountNotFoundException | InvalidTransactionException e) {
+            logger.warn("Business exception during account update for id: {}", accountId, e);
             throw e;
-        } catch (InvalidTransactionException e) {
-            logger.error("Invalid transaction for account id: {}", accountId, e);
-            throw e;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             logger.error("Unexpected error during account update for id: {}", accountId, e);
             throw new DatabaseUpdateException("Database update failed for account: " + accountId, e);
         }

@@ -113,7 +113,7 @@ class TransactionServiceTest {
     }
 
     @Test
-    void retryShouldCallRepositoryUpdate() {
+    void retryAddTransactionShouldCallRepositoryUpdate() {
         String accountId = "acc-1";
 
         Transaction transaction = new Transaction(
@@ -123,13 +123,13 @@ class TransactionServiceTest {
                 DEPOSIT
         );
 
-        transactionService.retry(accountId, transaction);
+        transactionService.retryAddTransaction(accountId, transaction);
 
         verify(accountRepository).updateAccount(eq(accountId), any());
     }
 
     @Test
-    void retryShouldPropagateDatabaseException() {
+    void retryAddTransactionShouldPropagateRetryableException() {
         String accountId = "acc-1";
 
         Transaction transaction = new Transaction(
@@ -143,8 +143,8 @@ class TransactionServiceTest {
                 .when(accountRepository)
                 .updateAccount(eq(accountId), any());
 
-        assertThrows(DatabaseUpdateException.class, () ->
-                transactionService.retry(accountId, transaction)
+        assertThrows(RetryableException.class, () ->
+                transactionService.retryAddTransaction(accountId, transaction)
         );
     }
 

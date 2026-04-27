@@ -47,19 +47,11 @@ public class TransactionService {
      */
     public Transaction addTransaction(String accountId, TransactionRequest transactionRequest) {
         Transaction transaction = buildTransaction(transactionRequest);
-
-        try {
-            accountRepository.updateAccount(accountId, account -> account.addTransaction(transaction));
-            return transaction;
-        } catch (DatabaseUpdateException e) {
-            logger.error("Transaction creation failed with database error for account: {}.", accountId, e);
-            addTransactionToRetryQueue(accountId, transaction);
-            throw new RetryableException("RetryableException occurred - transaction queued for retry", e);
-        }
+        return addTransaction(accountId, transaction, true);
     }
 
     /**
-     * Retry to update a transaction.
+     * Retry to add a transaction.
      *
      * @param accountId id of the account to be updated
      * @param transaction the transaction to process
@@ -67,15 +59,30 @@ public class TransactionService {
      * @throws AccountNotFoundException if the account is not found
      * @throws InvalidTransactionException if the transaction is invalid (ex duplicated transaction)
      */
-    public void retry(String accountId, Transaction transaction) {
-        accountRepository.updateAccount(accountId, account -> account.addTransaction(transaction));
+    public void retryAddTransaction(String accountId, Transaction transaction) {
+        addTransaction(accountId, transaction, false);
+    }
+
+    private Transaction addTransaction(String accountId, Transaction transaction, boolean retry){
+        try {
+            accountRepository.updateAccount(accountId, account -> account.addTransaction(transaction));
+            return transaction;
+        } catch (DatabaseUpdateException e) {
+            logger.error("Transaction creation failed with database error for account: {}.", accountId, e);
+
+            if(retry) {
+                addTransactionToRetryQueue(accountId, transaction);
+            }
+
+            throw new RetryableException("RetryableException occurred - transaction queued for retry", e);
+        }
     }
 
     public TransactionHistoryResponse getTransactionHistory(String accountId, int page, int pageSize) {
         Account account = accountService.validateAccountExists(accountId);
 
         int safePage = Math.max(page, 0);
-        int safePageSize = Math.clamp(pageSize, 1, 100); // cap at 100
+        int safePageSize = Math.clamp(pageSize, 1, 100);
 
         List<Transaction> pagedTransactions = account.getTransactions().stream()
                 .sorted((t1, t2) -> t2.createdAt().compareTo(t1.createdAt()))
