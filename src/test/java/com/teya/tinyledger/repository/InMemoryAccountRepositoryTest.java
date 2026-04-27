@@ -11,15 +11,9 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
 import java.util.function.UnaryOperator;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("InMemoryAccountRepo Unit Tests")
 class InMemoryAccountRepositoryTest {
@@ -33,7 +27,7 @@ class InMemoryAccountRepositoryTest {
 
     @Test
     @DisplayName("Should create and retrieve an account")
-    void createAccount_ShouldStoreAccount() {
+    void createAccountShouldStoreAccount() {
         Account account = new Account("Test", new BigDecimal("100.0"));
 
         accountRepo.createAccount(account.getId(), account);
@@ -45,7 +39,7 @@ class InMemoryAccountRepositoryTest {
 
     @Test
     @DisplayName("Should reject duplicate account IDs")
-    void createAccount_ShouldRejectDuplicateIds() {
+    void createAccountShouldRejectDuplicateIds() {
         Account account = new Account("Test", new BigDecimal("100.0"));
         accountRepo.createAccount(account.getId(), account);
 
@@ -57,7 +51,7 @@ class InMemoryAccountRepositoryTest {
 
     @Test
     @DisplayName("Should Throw AccountNotFoundException")
-    void shouldThrowAccountNotFoundException_whenAccountDoesNotExist() {
+    void shouldThrowAccountNotFoundExceptionWhenAccountDoesNotExist() {
         String nonExistentAccountId = "acc-123";
 
         UnaryOperator<Account> updateFunction = acc ->
@@ -73,19 +67,19 @@ class InMemoryAccountRepositoryTest {
 
     @Test
     @DisplayName("Should update an existing account atomically")
-    void updateAccount_ShouldApplyUpdateFunction() {
+    void updateAccountShouldApplyUpdateFunction() {
         Account account = new Account("Test", new BigDecimal("100.0"));
         accountRepo.createAccount(account.getId(), account);
 
         Transaction deposit = new Transaction(
-                UUID.randomUUID().toString(),
+                "tx-1",
                 LocalDateTime.of(2026, 4, 23, 12, 0),
                 new BigDecimal("50.0"),
                 TransactionType.DEPOSIT
         );
 
         Account updatedAccount = accountRepo.updateAccount(account.getId(),
-                existing -> existing.applyTransaction(deposit));
+                existing -> existing.addTransaction(deposit));
 
         assertNotNull(updatedAccount);
         assertEquals(new BigDecimal("150.0"), updatedAccount.getBalance());
@@ -95,7 +89,7 @@ class InMemoryAccountRepositoryTest {
 
     @Test
     @DisplayName("Should wrap update failures in DatabaseUpdateException")
-    void updateAccount_ShouldWrapUnexpectedFailures() {
+    void updateAccountShouldWrapUnexpectedFailures() {
         Account account = new Account("Test", new BigDecimal("100.0"));
         accountRepo.createAccount(account.getId(), account);
         String failureMessage = "Temporary database write error while updating account";

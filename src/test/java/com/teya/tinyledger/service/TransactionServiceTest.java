@@ -1,271 +1,218 @@
 package com.teya.tinyledger.service;
 
 import com.teya.tinyledger.domain.Account;
+import com.teya.tinyledger.domain.FailedTransaction;
 import com.teya.tinyledger.domain.Transaction;
-import com.teya.tinyledger.domain.TransactionType;
 import com.teya.tinyledger.dto.TransactionHistoryResponse;
 import com.teya.tinyledger.dto.TransactionRequest;
 import com.teya.tinyledger.exception.AccountNotFoundException;
 import com.teya.tinyledger.exception.DatabaseUpdateException;
-import com.teya.tinyledger.queue.TransactionQueue;
+import com.teya.tinyledger.exception.RetryableException;
+import com.teya.tinyledger.queue.TransactionRetryQueue;
 import com.teya.tinyledger.repository.AccountRepository;
-import com.teya.tinyledger.repository.InMemoryAccountRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
-import java.util.function.UnaryOperator;
+import java.util.Set;
 
+import static com.teya.tinyledger.domain.TransactionType.DEPOSIT;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.*;
 
-@DisplayName("TransactionService Integration Tests")
+@ExtendWith(MockitoExtension.class)
 class TransactionServiceTest {
-    private static final boolean RETRY = true;
+
+    @Mock
     private AccountRepository accountRepository;
+
+    @Mock
     private AccountService accountService;
-    private TransactionQueue transactionQueue;
+
+    @Mock
+    private TransactionRetryQueue retryQueue;
+
+    @InjectMocks
     private TransactionService transactionService;
 
-    @BeforeEach
-    void setUp() {
-        accountRepository = new InMemoryAccountRepository();
-        accountService = new AccountService(accountRepository);
-        transactionQueue = new TransactionQueue();
-        transactionService = new TransactionService(accountRepository, accountService, transactionQueue);
-    }
-
     @Test
-    @DisplayName("Should successfully add deposit to account")
-    void testAddDeposit_Success() {
-        Account account = new Account("Test", new BigDecimal("1000.0"));
-        String accountId = account.getId();
-        accountRepository.createAccount(accountId, account);
+    void shouldAddTransactionSuccessfully() {
+        String accountId = "acc-1";
 
-        BigDecimal depositAmount = new BigDecimal("500.0");
-        TransactionRequest request = new TransactionRequest(depositAmount, TransactionType.DEPOSIT);
-
-        transactionService.addTransaction(accountId, request, RETRY);
-
-        Account updatedAccount = accountRepository.getAccount(accountId);
-        assertNotNull(updatedAccount);
-        assertEquals(new BigDecimal("1500.0"), updatedAccount.getBalance());
-        assertEquals(1, updatedAccount.getTransactions().size());
-    }
-
-    @Test
-    @DisplayName("Should successfully add withdrawal from account")
-    void testAddWithdrawal_Success() {
-        Account account = new Account("Test", new BigDecimal("1000.0"));
-        String accountId = account.getId();
-        accountRepository.createAccount(accountId, account);
-
-        BigDecimal withdrawalAmount = new BigDecimal("300.0");
-        TransactionRequest request = new TransactionRequest(withdrawalAmount, TransactionType.WITHDRAWAL);
-
-        transactionService.addTransaction(accountId, request, RETRY);
-
-        Account updatedAccount = accountRepository.getAccount(accountId);
-        assertNotNull(updatedAccount);
-        assertEquals(new BigDecimal("700.0"), updatedAccount.getBalance());
-        assertEquals(1, updatedAccount.getTransactions().size());
-    }
-
-    @Test
-    @DisplayName("Should throw exception when account not found for deposit")
-    void testAddDeposit_AccountNotFound() {
-        String nonExistentAccountId = UUID.randomUUID().toString();
-        BigDecimal depositAmount = new BigDecimal("100.0");
-        TransactionRequest request = new TransactionRequest(depositAmount, TransactionType.DEPOSIT);
-
-        AccountNotFoundException exception = assertThrows(AccountNotFoundException.class, () -> {
-            transactionService.addTransaction(nonExistentAccountId, request, RETRY);
-        });
-
-        assertTrue(exception.getMessage().contains("Account not found"));
-        // Verify no transaction was added to the retry queue
-        assertEquals(0, transactionQueue.getRetryQueueSize());
-    }
-
-    @Test
-    @DisplayName("Should throw exception when account not found for withdrawal")
-    void testAddWithdrawal_AccountNotFound() {
-        String nonExistentAccountId = UUID.randomUUID().toString();
-        BigDecimal withdrawalAmount = new BigDecimal("100.0");
-        TransactionRequest request = new TransactionRequest(withdrawalAmount, TransactionType.WITHDRAWAL);
-
-        AccountNotFoundException exception = assertThrows(AccountNotFoundException.class, () -> {
-            transactionService.addTransaction(nonExistentAccountId, request, RETRY);
-        });
-
-        assertTrue(exception.getMessage().contains("Account not found"));
-        // Verify no transaction was added to the retry queue
-        assertEquals(0, transactionQueue.getRetryQueueSize());
-    }
-
-    @Test
-    @DisplayName("Should throw exception when database is not available and transaction should be sent to retry queue")
-    void testAddDeposit_DatabaseError() {
-        String accountId = UUID.randomUUID().toString();
-        AccountRepository accountRepository = new AccountRepository() {
-            @Override
-            public void createAccount(String ignoredAccountId, Account account) {
-            }
-
-            @Override
-            public Account getAccount(String ignoredAccountId) {
-                return new Account("Test", new BigDecimal("1000.0"));
-            }
-
-            @Override
-            public Account updateAccount(String ignoredAccountId, UnaryOperator<Account> updateFunction) {
-                throw new DatabaseUpdateException("DB down");
-            }
-        };
-        AccountService accountService = new AccountService(accountRepository);
-        TransactionQueue transactionQueue = new TransactionQueue();
-        TransactionService transactionService = new TransactionService(accountRepository, accountService, transactionQueue);
-
-        TransactionRequest request =
-                new TransactionRequest(new BigDecimal("100.0"), TransactionType.DEPOSIT);
-
-        DatabaseUpdateException exception = assertThrows(DatabaseUpdateException.class, () -> {
-            transactionService.addTransaction(accountId, request, RETRY);
-        });
-
-        assertEquals("DB down", exception.getMessage());
-
-        // Verify retry queue was used
-        assertEquals(1, transactionQueue.getRetryQueueSize());
-    }
-
-    @Test
-    @DisplayName("Should handle mixed deposit and withdrawal operations")
-    void testMixedOperations() {
-        Account account = new Account("Mixed Operations", new BigDecimal("1000.0"));
-        String accountId = account.getId();
-        accountRepository.createAccount(accountId, account);
-
-        TransactionRequest depositRequest1 = new TransactionRequest(new BigDecimal("500.0"), TransactionType.DEPOSIT);
-        TransactionRequest withdrawalRequest1 = new TransactionRequest(new BigDecimal("200.0"), TransactionType.WITHDRAWAL);
-        TransactionRequest depositRequest2 = new TransactionRequest(new BigDecimal("300.0"), TransactionType.DEPOSIT);
-        TransactionRequest withdrawalRequest2 = new TransactionRequest(new BigDecimal("100.0"), TransactionType.WITHDRAWAL);
-
-        transactionService.addTransaction(accountId, depositRequest1, RETRY);      // 1500
-        transactionService.addTransaction(accountId, withdrawalRequest1, RETRY); // 1300
-        transactionService.addTransaction(accountId, depositRequest2, RETRY);      // 1600
-        transactionService.addTransaction(accountId, withdrawalRequest2, RETRY); // 1500
-
-        Account updatedAccount = accountRepository.getAccount(accountId);
-        assertNotNull(updatedAccount);
-        assertEquals(new BigDecimal("1500.0"), updatedAccount.getBalance());
-        assertEquals(4, updatedAccount.getTransactions().size());
-    }
-
-    @Test
-    @DisplayName("Should verify deposit increases balance correctly")
-    void testDeposit_BalanceIncrement() {
-        Account account = new Account("Balance Test", new BigDecimal("500.0"));
-        String accountId = account.getId();
-        accountRepository.createAccount(accountId, account);
-
-        TransactionRequest request = new TransactionRequest(new BigDecimal("250.0"), TransactionType.DEPOSIT);
-
-        transactionService.addTransaction(accountId, request, RETRY);
-
-        Account updatedAccount = accountRepository.getAccount(accountId);
-        assertEquals(new BigDecimal("750.0"), updatedAccount.getBalance());
-    }
-
-    @Test
-    @DisplayName("Should verify withdrawal decreases balance correctly")
-    void testWithdrawal_BalanceDecrement() {
-        Account account = new Account("Withdrawal Test", new BigDecimal("1000.0"));
-        String accountId = account.getId();
-        accountRepository.createAccount(accountId, account);
-
-        TransactionRequest request = new TransactionRequest(new BigDecimal("350.0"), TransactionType.WITHDRAWAL);
-
-        transactionService.addTransaction(accountId, request, RETRY);
-
-        Account updatedAccount = accountRepository.getAccount(accountId);
-        assertEquals(new BigDecimal("650.0"), updatedAccount.getBalance());
-    }
-
-    @Test
-    @DisplayName("Should retrieve transaction history sorted by created at (most recent first)")
-    void testGetTransactionHistory_Success() {
-        Account account = new Account("Test User", new BigDecimal("250.0"));
-        String accountId = account.getId();
-
-        // Create transactions with different date times
-        Transaction t1 = new Transaction(
-                UUID.randomUUID().toString(),
-                LocalDateTime.of(2026, 4, 15, 10, 0, 0),
-                new BigDecimal("100.0"),
-                TransactionType.DEPOSIT
-        );
-        Transaction t2 = new Transaction(
-                UUID.randomUUID().toString(),
-                LocalDateTime.of(2026, 4, 15, 11, 0, 0),
-                new BigDecimal("50.0"),
-                TransactionType.WITHDRAWAL
-        );
-        Transaction t3 = new Transaction(
-                UUID.randomUUID().toString(),
-                LocalDateTime.of(2026, 4, 15, 9, 0, 0),
-                new BigDecimal("200.0"),
-                TransactionType.DEPOSIT
+        TransactionRequest request = new TransactionRequest(
+                "tx-1",
+                BigDecimal.TEN,
+                DEPOSIT
         );
 
-        Account accountWithT1 = account.applyTransaction(t1);
-        Account accountWithT2 = accountWithT1.applyTransaction(t2);
-        Account accountWithT3 = accountWithT2.applyTransaction(t3);
-        accountRepository.createAccount(accountId, accountWithT3);
+        Transaction result = transactionService.addTransaction(accountId, request);
 
-        TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId, 0, 10);
+        assertNotNull(result);
+        assertEquals("tx-1", result.id());
+        assertEquals(BigDecimal.TEN, result.amount());
+        assertEquals(DEPOSIT, result.transactionType());
 
-        assertNotNull(history);
-        assertEquals(accountId, history.getAccountId());
-        assertEquals("Test User", history.getAccountName());
-        assertEquals(new BigDecimal("500.0"), history.getCurrentBalance());
-        assertEquals(3, history.getTransactionCount());
-        assertEquals(3, history.getTransactions().size());
-
-        List<Transaction> transactions = history.getTransactions().stream().toList();
-        assertEquals(t2.id(), transactions.get(0).id());
-        assertEquals(t1.id(), transactions.get(1).id());
-        assertEquals(t3.id(), transactions.get(2).id());
+        verify(accountRepository).updateAccount(eq(accountId), any());
+        verifyNoInteractions(retryQueue);
     }
 
     @Test
-    @DisplayName("Should throw exception when account not found for transaction history")
-    void testGetTransactionHistory_AccountNotFound() {
-        String nonExistentAccountId = UUID.randomUUID().toString();
+    void shouldQueueAndThrowRetryableExceptionOnDatabaseError() {
+        String accountId = "acc-1";
 
-        AccountNotFoundException exception = assertThrows(AccountNotFoundException.class, () -> {
-            transactionService.getTransactionHistory(nonExistentAccountId, 0, 20);
-        });
+        TransactionRequest request = new TransactionRequest(
+                "tx-1",
+                BigDecimal.TEN,
+                DEPOSIT
+        );
 
-        assertTrue(exception.getMessage().contains("Account not found"));
+        doThrow(new DatabaseUpdateException("DB failure"))
+                .when(accountRepository)
+                .updateAccount(eq(accountId), any());
+
+        RetryableException ex = assertThrows(RetryableException.class, () ->
+                transactionService.addTransaction(accountId, request)
+        );
+
+        assertTrue(ex.getMessage().contains("RetryableException"));
+
+        ArgumentCaptor<FailedTransaction> captor =
+                ArgumentCaptor.forClass(FailedTransaction.class);
+
+        verify(retryQueue).addToRetryQueue(captor.capture());
+
+        FailedTransaction failedTransaction = captor.getValue();
+        assertEquals(accountId, failedTransaction.getAccountId());
+        assertEquals("tx-1", failedTransaction.getTransaction().id());
     }
 
     @Test
-    @DisplayName("Should return empty transaction history for account with no transactions")
-    void testGetTransactionHistory_EmptyTransactions() {
-        Account account = new Account("No Transactions", new BigDecimal("1000.0"));
-        String accountId = account.getId();
-        accountRepository.createAccount(accountId, account);
+    void shouldPropagateAccountNotFoundExceptionWithoutQueueing() {
+        String accountId = "acc-1";
 
-        TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId, 0, 20);
+        TransactionRequest request = new TransactionRequest(
+                "tx-1",
+                BigDecimal.TEN,
+                DEPOSIT
+        );
 
-        assertNotNull(history);
-        assertEquals(0, history.getTransactionCount());
-        assertEquals(0, history.getTransactions().size());
-        assertEquals(new BigDecimal("1000.0"), history.getCurrentBalance());
+        doThrow(new AccountNotFoundException("not found"))
+                .when(accountRepository)
+                .updateAccount(eq(accountId), any());
+
+        assertThrows(AccountNotFoundException.class, () ->
+                transactionService.addTransaction(accountId, request)
+        );
+
+        verifyNoInteractions(retryQueue);
+    }
+
+    @Test
+    void retryShouldCallRepositoryUpdate() {
+        String accountId = "acc-1";
+
+        Transaction transaction = new Transaction(
+                "tx-1",
+                LocalDateTime.now(),
+                BigDecimal.TEN,
+                DEPOSIT
+        );
+
+        transactionService.retry(accountId, transaction);
+
+        verify(accountRepository).updateAccount(eq(accountId), any());
+    }
+
+    @Test
+    void retryShouldPropagateDatabaseException() {
+        String accountId = "acc-1";
+
+        Transaction transaction = new Transaction(
+                "tx-1",
+                LocalDateTime.now(),
+                BigDecimal.TEN,
+                DEPOSIT
+        );
+
+        doThrow(new DatabaseUpdateException("fail"))
+                .when(accountRepository)
+                .updateAccount(eq(accountId), any());
+
+        assertThrows(DatabaseUpdateException.class, () ->
+                transactionService.retry(accountId, transaction)
+        );
+    }
+
+    @Test
+    void shouldReturnSortedPaginatedTransactionHistory() {
+        String accountId = "acc-1";
+
+        Transaction older = new Transaction(
+                "tx-1",
+                LocalDateTime.now().minusDays(2),
+                BigDecimal.ONE,
+                DEPOSIT
+        );
+
+        Transaction newest = new Transaction(
+                "tx-2",
+                LocalDateTime.now(),
+                BigDecimal.TEN,
+                DEPOSIT
+        );
+
+        Transaction middle = new Transaction(
+                "tx-3",
+                LocalDateTime.now().minusDays(1),
+                BigDecimal.ZERO,
+                DEPOSIT
+        );
+
+        Account account = mock(Account.class);
+
+        when(account.getId()).thenReturn(accountId);
+        when(account.getName()).thenReturn("Test");
+        when(account.getBalance()).thenReturn(BigDecimal.TEN);
+        when(account.getTransactions()).thenReturn(Set.of(older, newest, middle));
+
+        when(accountService.validateAccountExists(accountId)).thenReturn(account);
+
+        TransactionHistoryResponse response = transactionService.getTransactionHistory(accountId, 0, 2);
+
+        assertEquals(2, response.getTransactions().size());
+
+        // DESC order
+        assertEquals("tx-2", response.getTransactions().get(0).id());
+        assertEquals("tx-3", response.getTransactions().get(1).id());
+    }
+
+    @Test
+    void shouldClampPageSizeAndNormalizePage() {
+        String accountId = "acc-1";
+
+        Transaction tx = new Transaction(
+                "tx-1",
+                LocalDateTime.now(),
+                BigDecimal.ONE,
+                DEPOSIT
+        );
+
+        Account account = mock(Account.class);
+        when(account.getId()).thenReturn(accountId);
+        when(account.getName()).thenReturn("Test");
+        when(account.getBalance()).thenReturn(BigDecimal.ONE);
+        when(account.getTransactions()).thenReturn(Set.of(tx));
+
+        when(accountService.validateAccountExists(accountId)).thenReturn(account);
+
+        TransactionHistoryResponse response =
+                transactionService.getTransactionHistory(accountId, -5, 1000);
+
+        assertEquals(1, response.getTransactions().size());
     }
 }

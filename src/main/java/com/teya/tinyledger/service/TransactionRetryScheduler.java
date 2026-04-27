@@ -1,7 +1,8 @@
 package com.teya.tinyledger.service;
 
 import com.teya.tinyledger.domain.FailedTransaction;
-import com.teya.tinyledger.queue.TransactionQueue;
+import com.teya.tinyledger.exception.DatabaseUpdateException;
+import com.teya.tinyledger.queue.TransactionRetryQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -17,11 +18,11 @@ import org.springframework.stereotype.Service;
 public class TransactionRetryScheduler {
     private static final Logger logger = LoggerFactory.getLogger(TransactionRetryScheduler.class);
 
-    private final TransactionQueue transactionQueue;
+    private final TransactionRetryQueue transactionRetryQueue;
     private final TransactionService transactionService;
 
-    public TransactionRetryScheduler(TransactionQueue transactionQueue, TransactionService transactionService) {
-        this.transactionQueue = transactionQueue;
+    public TransactionRetryScheduler(TransactionRetryQueue transactionRetryQueue, TransactionService transactionService) {
+        this.transactionRetryQueue = transactionRetryQueue;
         this.transactionService = transactionService;
     }
 
@@ -32,7 +33,7 @@ public class TransactionRetryScheduler {
      */
     @Scheduled(fixedRate = 60000)
     public void retryFailedTransactions() {
-        int queueSize = transactionQueue.getRetryQueueSize();
+        int queueSize = transactionRetryQueue.getRetryQueueSize();
 
         if (queueSize == 0) {
             logger.debug("No transactions to retry in the queue");
@@ -40,20 +41,21 @@ public class TransactionRetryScheduler {
         }
 
         FailedTransaction failedTransaction;
-        while ((failedTransaction = transactionQueue.pollRetryQueue()) != null) {
+        while ((failedTransaction = transactionRetryQueue.pollRetryQueue()) != null) {
             try {
-                transactionService.addTransaction(failedTransaction.getAccountId(),
-                        failedTransaction.getTransactionRequest(), false);
-            } catch (Exception e) {
-                logger.error("Transaction retry failed for account: {}", failedTransaction.getAccountId(), e);
+                transactionService.retry(failedTransaction.getAccountId(), failedTransaction.getTransaction());
+            } catch (DatabaseUpdateException e) {
+                logger.error("Transaction retry failed for transaction id: {}", failedTransaction.getTransaction().id(), e);
 
                 failedTransaction.incrementRetryCount();
 
                 // Check if we should move to dead letter queue
-                if (!transactionQueue.moveToDeadLetterQueueIfMaxRetriesExceeded(failedTransaction)) {
+                if (!transactionRetryQueue.moveToDeadLetterQueueIfMaxRetriesExceeded(failedTransaction)) {
                     // Put back in retry queue if not exceeded max retries
-                    transactionQueue.addToRetryQueue(failedTransaction);
+                    transactionRetryQueue.addToRetryQueue(failedTransaction);
                 }
+            } catch (Exception e) {
+                logger.error("Transaction retry failed for transaction id: {}", failedTransaction.getTransaction().id(), e);
             }
         }
     }

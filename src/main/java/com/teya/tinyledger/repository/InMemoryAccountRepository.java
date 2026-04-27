@@ -3,15 +3,16 @@ package com.teya.tinyledger.repository;
 import com.teya.tinyledger.domain.Account;
 import com.teya.tinyledger.exception.AccountNotFoundException;
 import com.teya.tinyledger.exception.DatabaseUpdateException;
+import com.teya.tinyledger.exception.InvalidTransactionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.UnaryOperator;
 
-@Component
+@Repository
 public class InMemoryAccountRepository implements AccountRepository {
 
     private static final Logger logger = LoggerFactory.getLogger(InMemoryAccountRepository.class);
@@ -55,6 +56,9 @@ public class InMemoryAccountRepository implements AccountRepository {
             });
         } catch (AccountNotFoundException e){
             logger.error("Account not found for id: {}", accountId, e);
+            throw e;
+        } catch (InvalidTransactionException e) {
+            logger.error("Invalid transaction for account id: {}", accountId, e);
             throw e;
         } catch (Exception e) {
             logger.error("Unexpected error during account update for id: {}", accountId, e);

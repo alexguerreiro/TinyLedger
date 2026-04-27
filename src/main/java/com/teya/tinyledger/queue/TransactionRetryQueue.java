@@ -13,8 +13,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * After 3 failed retries, transactions are moved to the dead letter queue (logic for handling the DLQ is not implemented)
  */
 @Component
-public class TransactionQueue {
-    private static final Logger logger = LoggerFactory.getLogger(TransactionQueue.class);
+public class TransactionRetryQueue {
+    private static final Logger logger = LoggerFactory.getLogger(TransactionRetryQueue.class);
 
     // TODO should be added to a property file
     private static final int MAX_RETRY_ATTEMPTS = 3;

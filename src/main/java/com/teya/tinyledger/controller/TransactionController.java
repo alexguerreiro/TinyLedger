@@ -64,7 +64,7 @@ public class TransactionController {
             @Parameter(description = "The unique identifier of the account", required = true)
             @PathVariable String accountId,
             @Valid @RequestBody TransactionRequest transactionRequest) {
-        var transaction = transactionService.addTransaction(accountId, transactionRequest, true);
+        var transaction = transactionService.addTransaction(accountId, transactionRequest);
         TransactionResponse response = new TransactionResponse(
                 transaction.id(),
                 accountId,

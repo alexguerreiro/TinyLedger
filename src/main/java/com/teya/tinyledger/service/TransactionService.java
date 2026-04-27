@@ -2,41 +2,36 @@ package com.teya.tinyledger.service;
 
 import com.teya.tinyledger.domain.Account;
 import com.teya.tinyledger.domain.FailedTransaction;
-import com.teya.tinyledger.domain.TransactionType;
 import com.teya.tinyledger.domain.Transaction;
-import com.teya.tinyledger.dto.TransactionRequest;
 import com.teya.tinyledger.dto.TransactionHistoryResponse;
+import com.teya.tinyledger.dto.TransactionRequest;
 import com.teya.tinyledger.exception.AccountNotFoundException;
 import com.teya.tinyledger.exception.DatabaseUpdateException;
-import com.teya.tinyledger.queue.TransactionQueue;
+import com.teya.tinyledger.exception.InvalidTransactionException;
+import com.teya.tinyledger.exception.RetryableException;
+import com.teya.tinyledger.queue.TransactionRetryQueue;
 import com.teya.tinyledger.repository.AccountRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
-
-import static com.teya.tinyledger.domain.TransactionType.*;
 
 @Service
 public class TransactionService {
     private final AccountRepository accountRepository;
     private final AccountService accountService;
-    private final TransactionQueue transactionQueue;
+    private final TransactionRetryQueue transactionRetryQueue;
 
     private static final Logger logger = LoggerFactory.getLogger(TransactionService.class);
 
     public TransactionService(AccountRepository accountRepository,
                               AccountService accountService,
-                              TransactionQueue transactionQueue) {
+                              TransactionRetryQueue transactionRetryQueue) {
         this.accountRepository = accountRepository;
         this.accountService = accountService;
-        this.transactionQueue = transactionQueue;
+        this.transactionRetryQueue = transactionRetryQueue;
     }
 
 
@@ -46,29 +41,41 @@ public class TransactionService {
      *
      * @param accountId id of the account to be updated
      * @param transactionRequest the transaction request to process
-     * @param shouldRetry indicates if the transaction should go to a queue to be retried later on
-     * @throws DatabaseUpdateException if a database error occurs during transaction processing (retryable)
+     * @throws RetryableException if a (hypothetical) database error occurs during transaction processing (retryable)
      * @throws AccountNotFoundException if the account is not found
+     * @throws InvalidTransactionException if the transaction is invalid (ex duplicated transaction)
      */
-    public Transaction addTransaction(String accountId, TransactionRequest transactionRequest, boolean shouldRetry) {
+    public Transaction addTransaction(String accountId, TransactionRequest transactionRequest) {
+        Transaction transaction = buildTransaction(transactionRequest);
+
         try {
-            return addTransactionInternal(accountId, transactionRequest);
+            accountRepository.updateAccount(accountId, account -> account.addTransaction(transaction));
+            return transaction;
         } catch (DatabaseUpdateException e) {
             logger.error("Transaction creation failed with database error for account: {}.", accountId, e);
-
-            if(shouldRetry) {
-                addTransactionToQueue(accountId, transactionRequest);
-            }
-
-            throw e;
+            addTransactionToRetryQueue(accountId, transaction);
+            throw new RetryableException("RetryableException occurred - transaction queued for retry", e);
         }
+    }
+
+    /**
+     * Retry to update a transaction.
+     *
+     * @param accountId id of the account to be updated
+     * @param transaction the transaction to process
+     * @throws DatabaseUpdateException if a database error occurs during transaction processing (retryable)
+     * @throws AccountNotFoundException if the account is not found
+     * @throws InvalidTransactionException if the transaction is invalid (ex duplicated transaction)
+     */
+    public void retry(String accountId, Transaction transaction) {
+        accountRepository.updateAccount(accountId, account -> account.addTransaction(transaction));
     }
 
     public TransactionHistoryResponse getTransactionHistory(String accountId, int page, int pageSize) {
         Account account = accountService.validateAccountExists(accountId);
 
         int safePage = Math.max(page, 0);
-        int safePageSize = Math.min(Math.max(pageSize, 1), 100); // cap at 100
+        int safePageSize = Math.clamp(pageSize, 1, 100); // cap at 100
 
         List<Transaction> pagedTransactions = account.getTransactions().stream()
                 .sorted((t1, t2) -> t2.createdAt().compareTo(t1.createdAt()))
@@ -84,26 +91,17 @@ public class TransactionService {
         );
     }
 
-    /**
-     * Internal method to process the transaction logic.
-     *
-     * @param transactionRequest the transaction request to process
-     * @throws AccountNotFoundException if the account is not found
-     */
-    private Transaction addTransactionInternal(String accountId, TransactionRequest transactionRequest) {
-        Transaction transaction = buildTransaction(transactionRequest.getAmount(), transactionRequest.getTransactionType());
-
-        accountRepository.updateAccount(accountId, account -> account.applyTransaction(transaction));
-
-        return transaction;
+    private Transaction buildTransaction(TransactionRequest transactionRequest) {
+        return new Transaction(
+                transactionRequest.getTransactionId(),
+                LocalDateTime.now(),
+                transactionRequest.getAmount(),
+                transactionRequest.getTransactionType()
+        );
     }
 
-    private Transaction buildTransaction(BigDecimal amount, TransactionType transactionType) {
-        return new Transaction(UUID.randomUUID().toString(), LocalDateTime.now(), amount, transactionType);
-    }
-
-    private void addTransactionToQueue(String accountId, TransactionRequest transactionRequest){
-        FailedTransaction failedTransaction = new FailedTransaction(accountId, transactionRequest);
-        transactionQueue.addToRetryQueue(failedTransaction);
+    private void addTransactionToRetryQueue(String accountId, Transaction transaction){
+        FailedTransaction failedTransaction = new FailedTransaction(accountId, transaction);
+        transactionRetryQueue.addToRetryQueue(failedTransaction);
     }
 }

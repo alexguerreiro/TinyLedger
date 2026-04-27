@@ -1,7 +1,5 @@
 package com.teya.tinyledger.domain;
 
-import com.teya.tinyledger.dto.TransactionRequest;
-
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
@@ -11,14 +9,14 @@ import java.time.LocalDateTime;
  */
 public class FailedTransaction implements Serializable {
     private final String accountId;
-    private final TransactionRequest transactionRequest;
+    private final Transaction transaction;
     private int retryCount;
     private LocalDateTime createdAt;
     private LocalDateTime lastRetryAt;
 
-    public FailedTransaction(String accountId, TransactionRequest transactionRequest) {
+    public FailedTransaction(String accountId, Transaction transaction) {
         this.accountId = accountId;
-        this.transactionRequest = transactionRequest;
+        this.transaction = transaction;
         this.retryCount = 0;
         this.createdAt = LocalDateTime.now();
         this.lastRetryAt = LocalDateTime.now();
@@ -28,8 +26,8 @@ public class FailedTransaction implements Serializable {
         return accountId;
     }
 
-    public TransactionRequest getTransactionRequest() {
-        return transactionRequest;
+    public Transaction getTransaction() {
+        return transaction;
     }
 
     public int getRetryCount() {

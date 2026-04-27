@@ -81,13 +81,27 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handle DatabaseUpdateException - Returns 503 Service Unavailable
+     * Handle InvalidTransactionException
+     */
+    @ExceptionHandler(InvalidTransactionException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidTransactionException(InvalidTransactionException ex) {
+        logger.error("InvalidTransactionException occurred: {}", ex.getMessage(), ex);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", ex.getMessage());
+        response.put("statusCode", HttpStatus.BAD_REQUEST.value());
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    /**
+     * Handle RetryableException - Returns 503 Service Unavailable
      * This exception is thrown when database operations fail (retryable errors)
      * The transaction has been queued for automatic retry
      */
-    @ExceptionHandler(DatabaseUpdateException.class)
-    public ResponseEntity<Map<String, Object>> handleDatabaseUpdateException(DatabaseUpdateException ex) {
-        logger.warn("DatabaseUpdateException occurred - transaction queued for retry: {}", ex.getMessage(), ex);
+    @ExceptionHandler(RetryableException.class)
+    public ResponseEntity<Map<String, Object>> handleRetryableException(RetryableException ex) {
+        logger.warn("RetryableException occurred - transaction queued for retry: {}", ex.getMessage(), ex);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Transaction not persisted, queued for retry");

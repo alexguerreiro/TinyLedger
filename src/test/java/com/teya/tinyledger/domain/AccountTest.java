@@ -1,48 +1,103 @@
 package com.teya.tinyledger.domain;
 
-import org.junit.jupiter.api.DisplayName;
+import com.teya.tinyledger.exception.InvalidTransactionException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("Account Unit Tests")
 class AccountTest {
 
     @Test
-    @DisplayName("Should apply deposit transaction to balance and history")
-    void applyTransaction_ShouldHandleDeposit() {
-        Account account = new Account("Test", new BigDecimal("100.0"));
-        Transaction transaction = new Transaction(
-                UUID.randomUUID().toString(),
-                LocalDateTime.of(2026, 4, 23, 10, 0),
-                new BigDecimal("25.0"),
-                TransactionType.DEPOSIT
-        );
+    void shouldCreateAccountSuccessfully() {
+        Account account = new Account("Test Account", BigDecimal.valueOf(100));
 
-        Account updatedAccount = account.applyTransaction(transaction);
-
-        assertEquals(new BigDecimal("125.0"), updatedAccount.getBalance());
-        assertEquals(1, updatedAccount.getTransactions().size());
+        assertNotNull(account.getId());
+        assertEquals("Test Account", account.getName());
+        assertEquals(BigDecimal.valueOf(100), account.getBalance());
+        assertTrue(account.getTransactions().isEmpty());
     }
 
     @Test
-    @DisplayName("Should apply withdrawal transaction to balance and history")
-    void applyTransaction_ShouldHandleWithdrawal() {
-        Account account = new Account("Test", new BigDecimal("100.0"));
-        Transaction transaction = new Transaction(
-                UUID.randomUUID().toString(),
-                LocalDateTime.of(2026, 4, 23, 10, 0),
-                new BigDecimal("25.0"),
+    void shouldThrowExceptionWhenCreatingAccountWithNegativeBalance() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Account("Invalid Account", BigDecimal.valueOf(-1)));
+    }
+
+    @Test
+    void shouldApplyDepositTransaction() {
+        Account account = new Account("Test", BigDecimal.valueOf(100));
+
+        Transaction deposit = new Transaction(
+                "tx1",
+                LocalDateTime.now(),
+                BigDecimal.valueOf(50),
+                TransactionType.DEPOSIT
+        );
+
+        Account updated = account.addTransaction(deposit);
+
+        assertEquals(BigDecimal.valueOf(150), updated.getBalance());
+        assertTrue(updated.getTransactions().contains(deposit));
+
+        // original remains unchanged (immutability)
+        assertEquals(BigDecimal.valueOf(100), account.getBalance());
+        assertTrue(account.getTransactions().isEmpty());
+    }
+
+    @Test
+    void shouldApplyWithdrawalTransaction() {
+        Account account = new Account("Test", BigDecimal.valueOf(100));
+
+        Transaction withdrawal = new Transaction(
+                "tx2",
+                LocalDateTime.now(),
+                BigDecimal.valueOf(40),
                 TransactionType.WITHDRAWAL
         );
 
-        Account updatedAccount = account.applyTransaction(transaction);
+        Account updated = account.addTransaction(withdrawal);
 
-        assertEquals(new BigDecimal("75.0"), updatedAccount.getBalance());
-        assertEquals(1, updatedAccount.getTransactions().size());
+        assertEquals(BigDecimal.valueOf(60), updated.getBalance());
+        assertTrue(updated.getTransactions().contains(withdrawal));
+    }
+
+    @Test
+    void shouldThrowExceptionForDuplicateTransaction() {
+        Account account = new Account("Test", BigDecimal.valueOf(100));
+
+        Transaction tx = new Transaction(
+                "tx-dup",
+                LocalDateTime.now(),
+                BigDecimal.valueOf(10),
+                TransactionType.DEPOSIT
+        );
+
+        Account updated = account.addTransaction(tx);
+
+        assertThrows(InvalidTransactionException.class,
+                () -> updated.addTransaction(tx));
+    }
+
+    @Test
+    void transactionsShouldBeImmutable() {
+        Account account = new Account("Test", BigDecimal.valueOf(100));
+
+        Transaction tx = new Transaction(
+                "tx1",
+                LocalDateTime.now(),
+                BigDecimal.valueOf(10),
+                TransactionType.DEPOSIT
+        );
+
+        Account updated = account.addTransaction(tx);
+
+        Set<Transaction> transactions = updated.getTransactions();
+
+        assertThrows(UnsupportedOperationException.class,
+                () -> transactions.add(tx));
     }
 }

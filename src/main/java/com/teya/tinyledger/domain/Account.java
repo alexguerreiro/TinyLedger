@@ -1,5 +1,6 @@
 package com.teya.tinyledger.domain;
 
+import com.teya.tinyledger.exception.InvalidTransactionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,12 +50,17 @@ public final class Account {
     }
 
     /**
-     * Creates a new Account with the given transaction applied to both the balance and transaction history.
+     * Adds transaction and updates the account balance
      *
-     * @param transaction the transaction to apply
+     * @param transaction the transaction to add
      * @return a new Account instance reflecting the applied transaction
      */
-    public Account applyTransaction(Transaction transaction) {
+    public Account addTransaction(Transaction transaction) {
+        if (this.transactions.contains(transaction)) {
+            logger.error("Duplicate transaction detected for account {}: {}", this.id, transaction.id());
+            throw new InvalidTransactionException("Duplicate transaction id: " + transaction.id());
+        }
+
         Set<Transaction> transactionsCopy = new HashSet<>(this.transactions);
         transactionsCopy.add(transaction);
 
