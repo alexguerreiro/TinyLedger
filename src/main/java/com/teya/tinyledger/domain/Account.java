@@ -71,6 +71,23 @@ public final class Account {
         return new Account(this.id, this.name, newBalance, transactionsCopy);
     }
 
+    public Account rollbackTransaction(Transaction transaction) {
+        if (!this.transactions.contains(transaction)) {
+            logger.error("Transaction does not exist {}: {}", this.id, transaction.id());
+            throw new InvalidTransactionException("Transaction does not exist for id: " + transaction.id());
+        }
+
+        Set<Transaction> transactionsCopy = new HashSet<>(this.transactions);
+
+        transactionsCopy.remove(transaction);
+
+        BigDecimal newBalance = transaction.transactionType() == TransactionType.DEPOSIT
+                ? this.balance.subtract(transaction.amount())
+                : this.balance.add(transaction.amount());
+
+        return new Account(this.id, this.name, newBalance, transactionsCopy);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;

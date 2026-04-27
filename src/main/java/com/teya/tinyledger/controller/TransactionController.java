@@ -75,6 +75,14 @@ public class TransactionController {
         return ResponseEntity.status(CREATED).body(response);
     }
 
+    @RequestMapping("/rollback")
+    public ResponseEntity<TransactionResponse> rollbackTransaction(
+            @Parameter(description = "The unique identifier of the account", required = true)
+            @PathVariable String accountId) {
+        transactionService.rollback(accountId);
+        return ResponseEntity.status(CREATED).build();
+    }
+
     @GetMapping
     @Operation(
             summary = "Get transaction history for an account",
@@ -109,4 +117,5 @@ public class TransactionController {
         TransactionHistoryResponse history = transactionService.getTransactionHistory(accountId, page, pageSize);
         return ResponseEntity.ok(history);
     }
+
 }

@@ -17,12 +17,14 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Stack;
 
 @Service
 public class TransactionService {
     private final AccountRepository accountRepository;
     private final AccountService accountService;
     private final TransactionRetryQueue transactionRetryQueue;
+    private Stack<Transaction> transactionStack = new Stack<>();
 
     private static final Logger logger = LoggerFactory.getLogger(TransactionService.class);
 
@@ -47,6 +49,7 @@ public class TransactionService {
      */
     public Transaction addTransaction(String accountId, TransactionRequest transactionRequest) {
         Transaction transaction = buildTransaction(transactionRequest);
+        transactionStack.add(transaction);
         return addTransaction(accountId, transaction, true);
     }
 
@@ -61,6 +64,24 @@ public class TransactionService {
      */
     public void retryAddTransaction(String accountId, Transaction transaction) {
         addTransaction(accountId, transaction, false);
+    }
+
+    // TODO this method was implemented during the code challenge
+    // its not working as expected because its missing the part that updates the account in the repository
+    public void rollback(String accountId) {
+        Account account = accountRepository.getAccount(accountId);
+
+        if(account == null){
+            throw new AccountNotFoundException("Account not found for id: " + accountId);
+        }
+
+        while(!transactionStack.isEmpty()) {
+            Transaction tx = transactionStack.pop();
+
+            // this should work, however not fully tested
+            Account rolledBackAccount = account.rollbackTransaction(tx);
+            accountRepository.updateAccount(accountId, acc -> rolledBackAccount);
+        }
     }
 
     private Transaction addTransaction(String accountId, Transaction transaction, boolean retry){

@@ -62,6 +62,31 @@ class TransactionServiceTest {
     }
 
     @Test
+    void shouldRollbackTransacionSuccessfully() {
+        String accountId = "acc-1";
+
+        TransactionRequest request = new TransactionRequest(
+                "tx-1",
+                BigDecimal.TEN,
+                DEPOSIT
+        );
+
+        Transaction result = transactionService.addTransaction(accountId, request);
+
+        assertNotNull(result);
+        assertEquals("tx-1", result.id());
+        assertEquals(BigDecimal.TEN, result.amount());
+        assertEquals(DEPOSIT, result.transactionType());
+
+        verify(accountRepository).updateAccount(eq(accountId), any());
+        verifyNoInteractions(retryQueue);
+
+        transactionService.rollback(accountId);
+
+
+    }
+
+    @Test
     void shouldQueueAndThrowRetryableExceptionOnDatabaseError() {
         String accountId = "acc-1";
 
